@@ -1,0 +1,32 @@
+At HQ, or when task complete
+
+- If radar is available AND radar placements not complete AND no radar request yet this turn:
+    Task = place radar
+        - request radar
+        - set target coords
+        - dig coords
+
+- If trap is available AND no trap request yet this turn:
+    Task = place trap
+        - request trap
+        - set target coords
+        - dig coords
+
+- Else: dig closest ore
+    Task: get ore
+        - set target coords
+        - dig coords
+        - return ore to base
+
+- If ore available:
+    Task: blind dig
+        - blind_dig() - find closest undug grid
+        - if ore found, task = get_ore (return to base)
+
+
+TODO:
+- find closest ore - BEN
+- optimize radar placement
+- where to place our traps
+- keep track of enemy dug holes
+- refactor robot task structure
