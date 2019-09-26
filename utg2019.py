@@ -5,7 +5,6 @@ import math
 def log(message):
     print(message, file=sys.stderr)
 
-
 class Cell:
     def __init__(self, x, y, ore='?', hole=0):
         self.x = x
@@ -307,3 +306,21 @@ def blind_dig(robot, game_map):
             search_queue.append((search_x-1, search_y))
 
     return dig_x, dig_y
+
+def oresVisibles(ore_coords):
+    return (len(ore_coords) != 0)
+
+# assume there are visible ores
+# @param cell a grid location with x and y
+# @param ore_coords list of tuples of visible ores
+# returns closest (x, y) coordinate with ore 
+def findClosestOre(cell, ore_coords):
+    closest = ore_coords[0]
+    for (coords in ore_coords):
+        if (manhattanDistance(coords[0], coords[1]) < manhattanDistance(closest[0], closest[1])):
+            closest = coords
+    return closest
+
+def manhattanDistance(c1, c2):
+    return abs(c1.x - c2.x) + abs(c1.y - c2.y)
+>>>>>>> Stashed changes
