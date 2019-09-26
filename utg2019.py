@@ -64,11 +64,11 @@ class GameMap:
                     coords.append(cell)
         return coords
 
-    def get_safe_cells(self):
+    def get_blind_dig_cells(self):
         cells = list()
         for row in self.grid:
-            for cell in row:
-                if cell.is_safe() and cell.hole == '0':
+            for cell in row[1:]:
+                if not cell.hole and cell.ore == '?':
                     cells.append(cell)
         return cells
 
@@ -97,11 +97,18 @@ class Robot:
     def has_ore(self):
         return self.item == 4
 
-# radar_placements = [(9,7), (4,11), (4, 3), (14, 2), (14, 12), (20, 6), (26, 2), (25, 10)]
-radar_placements = [(9,7), (14, 2), (14, 12), (20, 6), (26, 2), (25, 10)]
 
+# radar_placements = [(9,7), (4,11), (4, 3), (14, 2), (14, 12), (20, 6), (26, 2), (25, 10)]
+# radar_placements = [(9,7), (14, 2), (14, 12), (20, 6), (26, 2), (25, 10)]
+radar_placements = [(5, 3), (5, 11), (10, 7), (15, 11), (15, 3), (20, 7), (25, 3), (25, 11), (20, 0), (20, 14), (29, 7),
+                    (10, 0), (10, 14), (20, 0), (20, 14), (0, 7)]
 
 def command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown, game_map, radar_requested, trap_requested):
+
+    num_ore_available = 0
+    for cell in ore_cells:
+        num_ore_available += int(cell.ore)
+
     cmd_given = None
 
     placing_traps = False
@@ -124,7 +131,7 @@ def command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown
         task_assigned = False
         if robot.x == 0:
             # check if radar is available
-            if radar_cooldown == 0 and len(radar_placements) and not radar_requested:
+            if radar_cooldown == 0 and len(radar_placements) and not radar_requested and num_ore_available < 10:
                 robot.task = 'RADAR'
                 robot.target_x, robot.target_y = radar_placements.pop(0)
                 task_assigned = True
@@ -189,7 +196,7 @@ def command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown
 
 
 def blind_dig(robot, game_map):
-    safe_cells = game_map.get_safe_cells()
+    safe_cells = game_map.get_blind_dig_cells()
     if safe_cells:
         robot_cell = game_map.get_cell(robot.x, robot.y)
         closest = safe_cells[0]
@@ -232,8 +239,8 @@ def manhattanDistance(c1, c2):
 # return list of robots within dist of a given coord
 def robots_within_distance(robots, coord, dist):
     for robot in robots.values():
-        if manhattanDistance( (robot.x, robot.y), coord) < dist:
-            yield robot;
+        if manhattanDistance((robot.x, robot.y), coord) < dist:
+            yield robot
 
 # Deliver more ore to hq (left side of the map) than your opponent. Use radars to find ore but beware of traps!
 
