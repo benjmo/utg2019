@@ -32,6 +32,9 @@ class Cell:
             return False
         return True
 
+    def ore_left(self):
+        return int(self.ore) if self.ore != '?' else -1
+
     def __repr__(self):
         return "({},{}):[{},{}]".format(self.x, self.y, self.ore, self.hole)
 
@@ -60,7 +63,7 @@ class GameMap:
         coords = list()
         for row in self.grid:
             for cell in row:
-                if cell.ore not in {'?', '0'}:
+                if cell.ore not in {'?', '0'} and not cell.has_trap():
                     coords.append(cell)
         return coords
 
@@ -68,9 +71,19 @@ class GameMap:
         cells = list()
         for row in self.grid:
             for cell in row[1:]:
-                if not cell.hole and cell.ore == '?':
+                if not cell.hole and cell.ore == '?' and not cell.has_trap():
                     cells.append(cell)
         return cells
+
+    def get_trap_candidate_coords(self):
+        candidates = list()
+        for row in self.grid:
+            for cell in row:
+                if not cell.we_dug and cell.ore_left() > 1 and not cell.has_trap():
+                    candidates.append(cell)
+
+        return candidates
+
 
 class Robot:
     def __init__(self, x, y, item, id):
@@ -98,27 +111,28 @@ class Robot:
         return self.item == 4
 
 
-# radar_placements = [(9,7), (4,11), (4, 3), (14, 2), (14, 12), (20, 6), (26, 2), (25, 10)]
-# radar_placements = [(9,7), (14, 2), (14, 12), (20, 6), (26, 2), (25, 10)]
-remaining_radar_placements = [(5, 3), (5, 11), (10, 7), (15, 11), (15, 3), (20, 7), (25, 3), (25, 11), (20, 0), (20, 14), (29, 7),
-                    (10, 0), (10, 14), (20, 0), (20, 14), (0, 7)]
+# remaining_radar_placements = [(5, 3), (5, 11), (10, 7), (15, 11), (15, 3), (20, 7), (25, 3), (25, 11), (20, 0), (20, 14), (29, 7),
+#                     (10, 0), (10, 14), (20, 0), (20, 14), (0, 7)]
+
+remaining_radar_placements = [(5, 5), (10, 7), (15, 11), (15, 3), (20, 7), (25, 3), (25, 11), (20, 0), (20, 14), (29, 7),
+                    (10, 0), (10, 14), (20, 0), (20, 14), (0, 7), (5, 11)]
+
 all_radar_placements = remaining_radar_placements
 
-def command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown, game_map, radar_requested, trap_requested):
+def command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown, game_map, radar_requested, trap_requested, turn):
 
     # counting ores visible
     num_ore_available = 0
     for cell in ore_cells:
-        num_ore_available += int(cell.ore)
+        if not cell.has_trap():
+            num_ore_available += int(cell.ore)
 
     # checking to see if radar was destroyed
-    for (coords in all_radar_placements):
+    for coords in all_radar_placements:
         if (not game_map.get_cell(coords[0], coords[1]).has_radar() and
             not coords in remaining_radar_placements):
             remaining_radar_placements.insert(0, coords)
     cmd_given = None
-
-    placing_traps = False
 
     # Clear item placement tasks
     if (robot.collected_item and ((robot.task == 'RADAR' and not robot.has_radar()) or
@@ -138,12 +152,12 @@ def command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown
         task_assigned = False
         if robot.x == 0:
             # check if radar is available
-            if radar_cooldown == 0 and len(remaining_radar_placements) and not radar_requested and num_ore_available < 10:
+            if radar_cooldown == 0 and len(remaining_radar_placements) and not radar_requested and num_ore_available < 15:
                 robot.task = 'RADAR'
                 robot.target_x, robot.target_y = remaining_radar_placements.pop(0)
                 task_assigned = True
             # check if trap is available
-            elif placing_traps and trap_cooldown == 0 and not trap_requested:
+            elif trap_cooldown == 0 and not trap_requested and turn <= 130:
                 robot.task = 'TRAP'
                 task_assigned = True
         # go and get some ore
@@ -163,7 +177,19 @@ def command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown
             game_map.get_cell(robot.target_x, robot.target_y).we_dug = True
 
     elif robot.task == 'TRAP':
-        print('ERROR: trap placement not ready yet', file=sys.stderr)
+        # print('ERROR: trap placement not ready yet', file=sys.stderr)
+        if not robot.has_trap():
+            cmd_given = 'REQUEST TRAP'
+        else:
+            my_cell = game_map.get_cell(robot.x, robot.y)
+            trap_candidate_coords = game_map.get_trap_candidate_coords()
+            if trap_candidate_coords:
+                closest_coord = findClosestOre(my_cell, trap_candidate_coords)
+                cmd_given = 'DIG {} {}'.format(closest_coord.x, closest_coord.y)
+            else:
+                dig_cell = blind_dig(robot, game_map)
+                if dig_cell:
+                    cmd_given = 'DIG {} {}'.format(dig_cell.x, dig_cell.y)
 
     elif robot.task == 'ORE':
         my_cell = game_map.get_cell(robot.x, robot.y)
@@ -184,12 +210,15 @@ def command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown
 
         # no (safe) ore found - blind dig
         if not cmd_given:
-            print('trying blind dig', file=sys.stderr)
-            dig_cell = blind_dig(robot, game_map)
-            if dig_cell:
-                cmd_given = 'DIG {} {}'.format(dig_cell.x, dig_cell.y)
+            if not radar_cooldown: # no ore, and no radar placement right now
+                robot.task = "RETURN"
+            else:
+                print('trying blind dig', file=sys.stderr)
+                dig_cell = blind_dig(robot, game_map)
+                if dig_cell:
+                    cmd_given = 'DIG {} {}'.format(dig_cell.x, dig_cell.y)
 
-    elif robot.task == 'RETURN':
+    if robot.task == 'RETURN':
         cmd_given = 'MOVE 0 {}'.format(robot.y)
 
     if not cmd_given:
@@ -325,7 +354,7 @@ while True:
 
     for id, robot in my_robots.items():
         command = command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown, game_map,
-                                  radar_requested, trap_requested)
+                                  radar_requested, trap_requested, turn)
 
         if command == 'REQUEST RADAR':
             radar_requested = True
