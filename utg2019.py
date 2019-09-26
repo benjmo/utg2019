@@ -18,6 +18,12 @@ class Cell:
         self.trap = 0
         self.radar = 0
 
+    def has_trap(self):
+        return self.trap > 0
+
+    def has_radar(self):
+        return self.radar > 0
+
     def clear_trap(self):
         if self.trap == 1:
             self.trap = 0
@@ -99,6 +105,7 @@ while True:
     # trap_cooldown: turns left until a new trap can be requested
     entity_count, radar_cooldown, trap_cooldown = [int(i) for i in input().split()]
 
+    radar_count = 0
     # Create/update entities
     my_robots = list()
     opp_robots = list()
@@ -109,7 +116,6 @@ while True:
         # item: if this entity is a robot, the item it is carrying (-1 for NONE, 2 for RADAR, 3 for TRAP, 4 for ORE)
         id, type, x, y, item = [int(j) for j in input().split()]
 
-        # Robots
         if type in {0, 1}:
             robot = Robot(x, y, item, id)
             if type == 0:
@@ -121,20 +127,19 @@ while True:
         # Radars
         elif type == 2:
             game_map.get_cell(x, y).radar = 1
+            radar_count += 1
 
         # Traps
         elif type == 3:
             game_map.get_cell(x, y).trap = 1
 
-        # print("{} {} {} {} {}".format(id, type, x, y, item), file=sys.stderr)
-
     ore_coords = game_map.get_ore_coordinates()
     for position, curr_robot in enumerate(my_robots):
-        command_robot(curr_robot, position, ore_coords)
+        command_robot(curr_robot, position, ore_coords, radar_count)
     turn += 1
 
 
-def command_robot(robot, position, ore_coords):
+def command_robot(robot, position, ore_coords, radar_count):
     cmd_given = False
 
     # initial setup for middle robot - get radar and plant in middle
@@ -146,6 +151,15 @@ def command_robot(robot, position, ore_coords):
             print('DIG 15 8')
             cmd_given = True
             game_map.get_cell(15, 8).we_dug = True
+
+    if position == 3:
+        # wait until we can get a radar then place it at coords
+        if (not robot.has_radar() and radar_count < 2):
+            print("REQUEST RADAR")
+            cmd_given = True
+        elif:
+            print('DIG 7 8')
+            cmd_given = True
 
     if not cmd_given:
         # has ore, return to base
