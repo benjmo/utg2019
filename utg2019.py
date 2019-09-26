@@ -64,6 +64,13 @@ class GameMap:
                     coords.append(cell)
         return coords
 
+    def get_safe_cells(self):
+        cells = list()
+        for row in self.grid:
+            for cell in row:
+                if cell.is_safe() and cell.hole == '0':
+                    cells.append(cell)
+        return cells
 
 class Robot:
     def __init__(self, x, y, item, id):
@@ -90,7 +97,8 @@ class Robot:
     def has_ore(self):
         return self.item == 4
 
-radar_placements = [(9,7), (4,11), (4, 3), (14, 2), (14, 12), (26, 2), (25, 10)]
+# radar_placements = [(9,7), (4,11), (4, 3), (14, 2), (14, 12), (20, 6), (26, 2), (25, 10)]
+radar_placements = [(9,7), (14, 2), (14, 12), (20, 6), (26, 2), (25, 10)]
 
 
 def command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown, game_map, radar_requested, trap_requested):
@@ -161,9 +169,11 @@ def command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown
                 cmd_given = 'DIG {} {}'.format(closest_ore.x, closest_ore.y)
 
         # no (safe) ore found - blind dig
-        # if not cmd_given:
-        #     dig_x, dig_y = blind_dig(robot, game_map)
-        #     cmd_given = 'DIG {} {}'.format(dig_x, dig_y)
+        if not cmd_given:
+            print('trying blind dig', file=sys.stderr)
+            dig_cell = blind_dig(robot, game_map)
+            if dig_cell:
+                cmd_given = 'DIG {} {}'.format(dig_cell.x, dig_cell.y)
 
     elif robot.task == 'RETURN':
         cmd_given = 'MOVE 0 {}'.format(robot.y)
@@ -179,32 +189,16 @@ def command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown
 
 
 def blind_dig(robot, game_map):
-    search_queue = list()
-    search_queue.append((robot.x, robot.y))
-    searched = set()
-
-    dig_x, dig_y = None, None
-    while len(search_queue):
-        search_x, search_y = search_queue.pop(0)
-        if game_map.get_cell(search_x, search_y).hole == '0':
-            dig_x, dig_y = search_x, search_y
-            break
-
-        searched.add((search_x, search_y))
-        # search up
-        if game_map.valid_coords(search_x, search_y+1) and (search_x, search_y+1) not in searched:
-            search_queue.append((search_x, search_y+1))
-        # search down
-        if game_map.valid_coords(search_x, search_y-1) and (search_x, search_y-1) not in searched:
-            search_queue.append((search_x, search_y-1))
-        # search right
-        if game_map.valid_coords(search_x+1, search_y) and (search_x+1, search_y) not in searched:
-            search_queue.append((search_x+1, search_y))
-        # search left
-        if game_map.valid_coords(search_x-1, search_y) and (search_x-1, search_y) not in searched:
-            search_queue.append((search_x-1, search_y))
-
-    return dig_x, dig_y
+    safe_cells = game_map.get_safe_cells()
+    if safe_cells:
+        robot_cell = game_map.get_cell(robot.x, robot.y)
+        closest = safe_cells[0]
+        for cell in safe_cells:
+            if manhattanDistance(cell, robot_cell) < manhattanDistance(closest, robot_cell):
+                closest = cell
+        return closest
+    print('tried blind dig but no safe cells, len = {}'.format(len(safe_cells)), file=sys.stderr)
+    return None
 
 # assume there are visible ores
 # @param cell a grid location with x and y
