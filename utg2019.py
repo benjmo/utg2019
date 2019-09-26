@@ -34,6 +34,8 @@ class Cell:
 
 class GameMap:
     def __init__(self, width, height):
+        self.width = width
+        self.height = height
         self.grid = list()
         for i in range(height):
             row = list()
@@ -43,6 +45,9 @@ class GameMap:
 
     def __repr__(self):
         return self.grid
+
+    def valid_coords(self, x, y):
+        return x >= 0 and x < self.width and y >= 0 and y < self.height
 
     def get_cell(self, x, y):
         return self.grid[y][x]
@@ -173,3 +178,31 @@ def command_robot(robot, position, ore_coords, radar_count):
         # no ore known at the moment, wait in the middle
         else:
             print('MOVE 15 8')
+
+def blind_dig(robot, game_map):
+    search_queue = list()
+    search_queue.append((robot.x, robot.y))
+    searched = set()
+
+    dig_x, dig_y = None, None
+    while len(search_queue):
+        search_x, search_y = search_queue.pop(0)
+        if game_map.get_cell(search_x, search_y).hole == '0':
+            dig_x, dig_y = search_x, search_y
+            break
+
+        searched.add(search_x, search_y)
+        # search up
+        if game_map.valid_coords(search_x, search_y+1) and (search_x, search_y+1) not in searched:
+            search_queue.append((search_x, search_y+1))
+        # search down
+        if game_map.valid_coords(search_x, search_y-1) and (search_x, search_y-1) not in searched:
+            search_queue.append((search_x, search_y-1))
+        # search right
+        if game_map.valid_coords(search_x+1, search_y) and (search_x+1, search_y) not in searched:
+            search_queue.append((search_x+1, search_y))
+        # search left
+        if game_map.valid_coords(search_x-1, search_y) and (search_x-1, search_y) not in searched:
+            search_queue.append((search_x-1, search_y))
+
+    return dig_x, dig_y
