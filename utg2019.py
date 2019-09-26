@@ -281,9 +281,27 @@ def oresVisibles(ore_coords):
 def findClosestOre(cell, ore_coords):
     closest = ore_coords[0]
     for (coords in ore_coords):
-        if (manhattanDistance(coords[0], coords[1]) < manhattanDistance(closest[0], closest[1])):
+        if (manhattanDistance(cell, coords) < manhattanDistance(cell, closest)):
             closest = coords
     return closest
+
+# assume there are visible ores
+# @param cell a grid location with x and y
+# @param ore_coords list of tuples of visible ores
+# returns closest (x, y) coordinate with ore that was not an enemy hole
+def findClosestSafeOre(cell, ore_coords):
+    closest = ore_coords[0]
+    for (coords in ore_coords):
+        ore_cell = game_map.get_cell(coords[0], coords[1])
+        if (manhattanDistance(cell, ore_cell) < manhattanDistance(cell, closest) and
+            isSafe(ore_cell)):
+            closest = coords
+    return closest
+
+def isSafe(cell):
+    if (cell.hole and not cell.we_dug):
+        return False
+    return True
 
 def manhattanDistance(c1, c2):
     return abs(c1.x - c2.x) + abs(c1.y - c2.y)
