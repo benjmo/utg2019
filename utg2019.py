@@ -34,7 +34,11 @@ class Cell:
 
     def is_safe(self):
         if self.hole and not self.we_dug:
+            if self.x == 12 and self.y == 8:
+                log('cell (12,8) is NOT safe')
             return False
+        if self.x == 12 and self.y == 8:
+            log('cell (12,8) is safe')
         return True
 
     def ore_left(self):
@@ -84,7 +88,7 @@ class GameMap:
         candidates = list()
         for row in self.grid:
             for cell in row:
-                if not cell.we_dug and cell.ore_left() > 1 and not cell.has_trap():
+                if not cell.we_dug and cell.ore_left() > 1 and not cell.has_trap() and cell.is_safe():
                     candidates.append(cell)
 
         return candidates
@@ -271,7 +275,7 @@ def findClosestSafeOre(cell, ore_cells):
         if ore_cell.is_safe():
             if not closest:
                 closest = ore_cell
-            elif manhattanDistance(cell, ore_cell) < manhattanDistance(cell, closest) and ore_cell.is_safe():
+            elif manhattanDistance(cell, ore_cell) < manhattanDistance(cell, closest):
                 closest = ore_cell
     return closest
 
