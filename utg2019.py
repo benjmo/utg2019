@@ -79,6 +79,7 @@ while True:
     # trap_cooldown: turns left until a new trap can be requested
     entity_count, radar_cooldown, trap_cooldown = [int(i) for i in input().split()]
 
+    radar_count = 0
     my_robots = list()
     opp_robots = list()
     for i in range(entity_count):
@@ -97,16 +98,19 @@ while True:
             else:
                 opp_robots.append(robot)
 
+        if type == 2:
+            radar_count += 1
+
         # print("{} {} {} {} {}".format(id, type, x, y, item), file=sys.stderr)
 
     ore_coords = game_map.get_ore_coordinates()
     for position, curr_robot in enumerate(my_robots):
-        command_robot(curr_robot, position, ore_coords)
+        command_robot(curr_robot, position, ore_coords, radar_count)
     turn += 1
 
 
 
-def command_robot(robot, position, ore_coords):
+def command_robot(robot, position, ore_coords, radar_count):
     cmd_given = False
 
     # initial setup for middle robot - get radar and plant in middle
@@ -116,6 +120,15 @@ def command_robot(robot, position, ore_coords):
             cmd_given = True
         elif robot.has_radar():
             print('DIG 15 8')
+            cmd_given = True
+
+    if position == 3:
+        # wait until we can get a radar then place it at coords
+        if (not robot.has_radar() and radar_count < 2):
+            print("REQUEST RADAR")
+            cmd_given = True
+        elif:
+            print('DIG 7 8')
             cmd_given = True
 
     if not cmd_given:
