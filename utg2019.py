@@ -193,7 +193,6 @@ while True:
 
     radar_count = 0
 
-
     for i in range(entity_count):
         # id: unique id of the entity
         # type: 0 for your robot, 1 for other robot, 2 for radar, 3 for trap
@@ -244,41 +243,6 @@ while True:
     turn += 1
 
 
-def command_robot(robot, position, ore_coords, radar_count):
-    cmd_given = False
-
-    # initial setup for middle robot - get radar and plant in middle
-    if position == 2:
-        if turn == 0:
-            print('REQUEST RADAR')
-            cmd_given = True
-        elif robot.has_radar():
-            print('DIG 15 8')
-            cmd_given = True
-            game_map.get_cell(15, 8).we_dug = True
-
-    if position == 3:
-        # wait until we can get a radar then place it at coords
-        if (not robot.has_radar() and radar_count < 2):
-            print("REQUEST RADAR")
-            cmd_given = True
-        elif:
-            print('DIG 7 8')
-            cmd_given = True
-
-    if not cmd_given:
-        # has ore, return to base
-        if robot.has_ore():
-            print('MOVE 0 {}'.format(robot.y))
-        # no ore, search for some
-        elif len(ore_coords):
-            x, y = ore_coords.pop()
-            print('DIG {} {}'.format(x, y))
-            game_map.get_cell(15, 8).we_dug = True
-        # no ore known at the moment, wait in the middle
-        else:
-            print('MOVE 15 8')
-
 def blind_dig(robot, game_map):
     search_queue = list()
     search_queue.append((robot.x, robot.y))
@@ -323,4 +287,3 @@ def findClosestOre(cell, ore_coords):
 
 def manhattanDistance(c1, c2):
     return abs(c1.x - c2.x) + abs(c1.y - c2.y)
->>>>>>> Stashed changes
