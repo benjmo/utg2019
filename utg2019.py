@@ -1,6 +1,6 @@
 import sys
 import math
-
+from copy import deepcopy
 
 def log(message):
     print(message, file=sys.stderr)
@@ -26,6 +26,11 @@ class Cell:
     def clear_trap(self):
         if self.trap == 1:
             self.trap = 0
+
+    def clear_radar(self):
+        if self.radar == 1:
+            self.radar = 0
+            return True
 
     def is_safe(self):
         if self.hole and not self.we_dug:
@@ -117,7 +122,7 @@ class Robot:
 remaining_radar_placements = [(5, 5), (10, 7), (15, 11), (15, 3), (20, 7), (25, 3), (25, 11), (20, 0), (20, 14), (29, 7),
                     (10, 0), (10, 14), (20, 0), (20, 14), (0, 7), (5, 11)]
 
-all_radar_placements = remaining_radar_placements
+all_radar_placements = deepcopy(remaining_radar_placements)
 
 def command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown, game_map, radar_requested, trap_requested, turn):
 
@@ -127,11 +132,13 @@ def command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown
         if not cell.has_trap():
             num_ore_available += int(cell.ore)
 
-    # checking to see if radar was destroyed
-    for coords in all_radar_placements:
-        if (not game_map.get_cell(coords[0], coords[1]).has_radar() and
-            not coords in remaining_radar_placements):
-            remaining_radar_placements.insert(0, coords)
+    # # checking to see if radar was destroyed
+    # for coords in all_radar_placements:
+    #     if (not game_map.get_cell(coords[0], coords[1]).has_radar() and
+    #         not coords in remaining_radar_placements):
+    #         remaining_radar_placements.insert(0, coords)
+    #         log('remaining radar = {}, inserted {}'.format(remaining_radar_placements, coords))
+
     cmd_given = None
 
     # Clear item placement tasks
@@ -296,6 +303,7 @@ opp_robots = {}
 while True:
     # my_score: Amount of ore delivered
     my_score, opponent_score = [int(i) for i in input().split()]
+    had_radar = list()
     for i in range(height):
         inputs = input().split()
         for j in range(width):
@@ -309,6 +317,10 @@ while True:
 
             # clear trap info
             game_map.grid[i][j].clear_trap()
+
+            # clear radar
+            if game_map.grid[i][j].clear_radar():
+                had_radar.append(game_map.grid[i][j])
 
     # entity_count: number of entities visible to you
     # radar_cooldown: turns left until a new radar can be requested
@@ -342,12 +354,18 @@ while True:
 
         # Radars
         elif type == 2:
-            game_map.get_cell(x, y).radar = 1
+            radar_cell = game_map.get_cell(x, y).radar = 1
             radar_count += 1
 
         # Traps
         elif type == 3:
             game_map.get_cell(x, y).trap = 1
+
+    # check for radars lost
+    for cell in had_radar:
+        if not cell.has_radar():
+            remaining_radar_placements.insert(0, (cell.x, cell.y))
+            log('lost radar at ({},{}) reinserted'.format(cell.x, cell.y))
 
     ore_cells = game_map.get_ore_cells()
     radar_requested, trap_requested = False, False
