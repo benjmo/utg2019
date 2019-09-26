@@ -101,7 +101,8 @@ def command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown
     # Clear item placement tasks
     if (robot.collected_item and ((robot.task == 'RADAR' and not robot.has_radar()) or
                                   (robot.task == 'TRAP' and not robot.has_trap())))\
-            or (robot.task == 'RETURN' and robot.x) == 0:
+            or (robot.task == 'RETURN' and robot.x == 0):
+        print('clearing task: has_radar = {}'.format(robot.has_radar()), file=sys.stderr)
         robot.task = None
         robot.collected_item = False
         robot.target_x, robot.target_y = None, None
@@ -137,6 +138,7 @@ def command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown
         # Robot has radar - proceed to target
         else:
             cmd_given = 'DIG {} {}'.format(robot.target_x, robot.target_y)
+            game_map.get_cell(robot.target_x, robot.target_y).we_dug = True
 
     elif robot.task == 'TRAP':
         print('ERROR: trap placement not ready yet', file=sys.stderr)
@@ -145,24 +147,88 @@ def command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown
         my_cell = game_map.get_cell(robot.x, robot.y)
         # find closest ore
         if len(ore_cells):
-            closest_ore = findClosestSafeOre(my_cell, ore_cells)
+            print('{} ore cells visible'.format(len(ore_cells)), file=sys.stderr)
+            # closest_ore = findClosestSafeOre(my_cell, ore_cells)
+            closest_ore = findClosestOre(my_cell, ore_cells)
+
             if closest_ore:  # close safe ore exists
                 cmd_given = 'DIG {} {}'.format(closest_ore.x, closest_ore.y)
+                closest_ore.we_dug = True
+            else:
+                print('closest ore is none :(', file=sys.stderr)
 
         # no (safe) ore found - blind dig
-        if not cmd_given:
-            dig_x, dig_y = blind_dig(robot, game_map)
-            cmd_given = 'DIG {} {}'.format(dig_x, dig_y)
+        # if not cmd_given:
+        #     dig_x, dig_y = blind_dig(robot, game_map)
+        #     cmd_given = 'DIG {} {}'.format(dig_x, dig_y)
 
     elif robot.task == 'RETURN':
         cmd_given = 'MOVE 0 {}'.format(robot.y)
 
     if not cmd_given:
-        print('ERROR: how did we get here? * no safe blind digs?')
+        # print('ERROR: how did we get here? * no safe blind digs?')
         # temp - return to base
-        cmd_given = 'MOVE 0 {}'.format(robot.y)
+        # cmd_given = 'MOVE 0 {}'.format(robot.y)
+        cmd_given = 'WAIT'
+        robot.task = None
 
     return cmd_given
+
+
+def blind_dig(robot, game_map):
+    search_queue = list()
+    search_queue.append((robot.x, robot.y))
+    searched = set()
+
+    dig_x, dig_y = None, None
+    while len(search_queue):
+        search_x, search_y = search_queue.pop(0)
+        if game_map.get_cell(search_x, search_y).hole == '0':
+            dig_x, dig_y = search_x, search_y
+            break
+
+        searched.add((search_x, search_y))
+        # search up
+        if game_map.valid_coords(search_x, search_y+1) and (search_x, search_y+1) not in searched:
+            search_queue.append((search_x, search_y+1))
+        # search down
+        if game_map.valid_coords(search_x, search_y-1) and (search_x, search_y-1) not in searched:
+            search_queue.append((search_x, search_y-1))
+        # search right
+        if game_map.valid_coords(search_x+1, search_y) and (search_x+1, search_y) not in searched:
+            search_queue.append((search_x+1, search_y))
+        # search left
+        if game_map.valid_coords(search_x-1, search_y) and (search_x-1, search_y) not in searched:
+            search_queue.append((search_x-1, search_y))
+
+    return dig_x, dig_y
+
+# assume there are visible ores
+# @param cell a grid location with x and y
+# @param ore_coords list of tuples of visible ores
+# returns closest (x, y) coordinate with ore
+def findClosestOre(cell, ore_cells):
+    closest = ore_cells[0]
+    for ore_cell in ore_cells:
+        if (manhattanDistance(cell, ore_cell) < manhattanDistance(cell, closest)):
+            closest = ore_cell
+    return closest
+
+# assume there are visible ores
+# @param cell a grid location with x and y
+# @param ore_coords list of tuples of visible ores
+# returns closest (x, y) coordinate with ore that was not an enemy hole
+def findClosestSafeOre(cell, ore_cells):
+    closest = ore_cells[0]
+    for ore_cell in ore_cells:
+        if manhattanDistance(cell, ore_cell) < manhattanDistance(cell, closest) and ore_cell.is_safe():
+            closest = ore_cell
+    return closest if closest.is_safe() else None
+
+
+def manhattanDistance(c1, c2):
+    return abs(c1.x - c2.x) + abs(c1.y - c2.y)
+
 
 # Deliver more ore to hq (left side of the map) than your opponent. Use radars to find ore but beware of traps!
 
@@ -208,19 +274,19 @@ while True:
         if type in {0, 1}:
             robot = Robot(x, y, item, id)
             if type == 0:
-                if id in my_robots: # Robot already exists
+                if id in my_robots:  # Robot already exists
                     my_robots[id].x = x
-                    my_robots[id].y = x
+                    my_robots[id].y = y
                     my_robots[id].item = item
                     my_robots[id].id = id
                 else:
                     my_robots[id] = robot
 
-                log(id)
+                # log(id)
             else:
                 if id in opp_robots:
                     opp_robots[id].x = x
-                    opp_robots[id].y = x
+                    opp_robots[id].y = y
                     opp_robots[id].item = item
                     opp_robots[id].id = id
                 else:
@@ -236,8 +302,8 @@ while True:
             game_map.get_cell(x, y).trap = 1
 
     ore_cells = game_map.get_ore_cells()
+    radar_requested, trap_requested = False, False
     for id, robot in my_robots.items():
-        radar_requested, trap_requested = False, False
         command = command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown, game_map,
                                   radar_requested, trap_requested)
 
@@ -248,60 +314,5 @@ while True:
 
         command += ' {}'.format(robot.task)
         print(command)
-        
+
     turn += 1
-
-
-def blind_dig(robot, game_map):
-    search_queue = list()
-    search_queue.append((robot.x, robot.y))
-    searched = set()
-
-    dig_x, dig_y = None, None
-    while len(search_queue):
-        search_x, search_y = search_queue.pop(0)
-        if game_map.get_cell(search_x, search_y).hole == '0':
-            dig_x, dig_y = search_x, search_y
-            break
-
-        searched.add(search_x, search_y)
-        # search up
-        if game_map.valid_coords(search_x, search_y+1) and (search_x, search_y+1) not in searched:
-            search_queue.append((search_x, search_y+1))
-        # search down
-        if game_map.valid_coords(search_x, search_y-1) and (search_x, search_y-1) not in searched:
-            search_queue.append((search_x, search_y-1))
-        # search right
-        if game_map.valid_coords(search_x+1, search_y) and (search_x+1, search_y) not in searched:
-            search_queue.append((search_x+1, search_y))
-        # search left
-        if game_map.valid_coords(search_x-1, search_y) and (search_x-1, search_y) not in searched:
-            search_queue.append((search_x-1, search_y))
-
-    return dig_x, dig_y
-
-# assume there are visible ores
-# @param cell a grid location with x and y
-# @param ore_coords list of tuples of visible ores
-# returns closest (x, y) coordinate with ore 
-def findClosestOre(cell, ore_cells):
-    closest = ore_cells[0]
-    for ore_cell in ore_cells:
-        if (manhattanDistance(cell, ore_cell) < manhattanDistance(cell, closest)):
-            closest = ore_cell
-    return closest
-
-# assume there are visible ores
-# @param cell a grid location with x and y
-# @param ore_coords list of tuples of visible ores
-# returns closest (x, y) coordinate with ore that was not an enemy hole
-def findClosestSafeOre(cell, ore_cells):
-    closest = [0]
-    for ore_cell in ore_cells:
-        if manhattanDistance(cell, ore_cell) < manhattanDistance(cell, closest) and ore_cell.is_safe():
-            closest = ore_cell
-    return closest if closest.is_safe() else None
-
-
-def manhattanDistance(c1, c2):
-    return abs(c1.x - c2.x) + abs(c1.y - c2.y)
