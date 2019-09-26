@@ -100,15 +100,22 @@ class Robot:
 
 # radar_placements = [(9,7), (4,11), (4, 3), (14, 2), (14, 12), (20, 6), (26, 2), (25, 10)]
 # radar_placements = [(9,7), (14, 2), (14, 12), (20, 6), (26, 2), (25, 10)]
-radar_placements = [(5, 3), (5, 11), (10, 7), (15, 11), (15, 3), (20, 7), (25, 3), (25, 11), (20, 0), (20, 14), (29, 7),
+remaining_radar_placements = [(5, 3), (5, 11), (10, 7), (15, 11), (15, 3), (20, 7), (25, 3), (25, 11), (20, 0), (20, 14), (29, 7),
                     (10, 0), (10, 14), (20, 0), (20, 14), (0, 7)]
+all_radar_placements = remaining_radar_placements
 
 def command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown, game_map, radar_requested, trap_requested):
 
+    # counting ores visible
     num_ore_available = 0
     for cell in ore_cells:
         num_ore_available += int(cell.ore)
 
+    # checking to see if radar was destroyed
+    for (coords in all_radar_placements):
+        if (not game_map.get_cell(coords[0], coords[1]).has_radar() and
+            not coords in remaining_radar_placements):
+            remaining_radar_placements.insert(0, coords)
     cmd_given = None
 
     placing_traps = False
@@ -131,9 +138,9 @@ def command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown
         task_assigned = False
         if robot.x == 0:
             # check if radar is available
-            if radar_cooldown == 0 and len(radar_placements) and not radar_requested and num_ore_available < 10:
+            if radar_cooldown == 0 and len(remaining_radar_placements) and not radar_requested and num_ore_available < 10:
                 robot.task = 'RADAR'
-                robot.target_x, robot.target_y = radar_placements.pop(0)
+                robot.target_x, robot.target_y = remaining_radar_placements.pop(0)
                 task_assigned = True
             # check if trap is available
             elif placing_traps and trap_cooldown == 0 and not trap_requested:
