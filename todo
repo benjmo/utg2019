@@ -24,9 +24,7 @@ At HQ, or when task complete
         - if ore found, task = get_ore (return to base)
 
 
-TODO:
-- find closest ore - BEN
-- optimize radar placement
-- where to place our traps
-- keep track of enemy dug holes
-- refactor robot task structure
+TODO DAY2 PLANS:
+- improved radar placement
+- less risky mining/radar placement - analyze silver boss
+- more aggressive trap tactics?
