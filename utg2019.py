@@ -90,7 +90,7 @@ class Robot:
     def has_ore(self):
         return self.item == 4
 
-radar_placements = [(5,2), (5,11), (15, 2), (15, 11), (20, 2), (20, 11)]
+radar_placements = [(9,7), (4,11), (4, 3), (14, 2), (14, 12), (26, 2), (25, 10)]
 
 
 def command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown, game_map, radar_requested, trap_requested):
@@ -147,15 +147,18 @@ def command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown
         my_cell = game_map.get_cell(robot.x, robot.y)
         # find closest ore
         if len(ore_cells):
-            print('{} ore cells visible'.format(len(ore_cells)), file=sys.stderr)
-            # closest_ore = findClosestSafeOre(my_cell, ore_cells)
-            closest_ore = findClosestOre(my_cell, ore_cells)
+            # print('{} ore cells visible'.format(len(ore_cells)), file=sys.stderr)
+            closest_ore = findClosestSafeOre(my_cell, ore_cells)
+            # closest_ore = findClosestOre(my_cell, ore_cells)
 
             if closest_ore:  # close safe ore exists
                 cmd_given = 'DIG {} {}'.format(closest_ore.x, closest_ore.y)
                 closest_ore.we_dug = True
             else:
-                print('closest ore is none :(', file=sys.stderr)
+                print('ore exists but closest safe ore is none :(', file=sys.stderr)
+                # try a risky one
+                closest_ore = findClosestOre(my_cell, ore_cells)
+                cmd_given = 'DIG {} {}'.format(closest_ore.x, closest_ore.y)
 
         # no (safe) ore found - blind dig
         # if not cmd_given:
@@ -219,11 +222,14 @@ def findClosestOre(cell, ore_cells):
 # @param ore_coords list of tuples of visible ores
 # returns closest (x, y) coordinate with ore that was not an enemy hole
 def findClosestSafeOre(cell, ore_cells):
-    closest = ore_cells[0]
+    closest = None
     for ore_cell in ore_cells:
-        if manhattanDistance(cell, ore_cell) < manhattanDistance(cell, closest) and ore_cell.is_safe():
-            closest = ore_cell
-    return closest if closest.is_safe() else None
+        if ore_cell.is_safe():
+            if not closest:
+                closest = ore_cell
+            elif manhattanDistance(cell, ore_cell) < manhattanDistance(cell, closest) and ore_cell.is_safe():
+                closest = ore_cell
+    return closest
 
 
 def manhattanDistance(c1, c2):
