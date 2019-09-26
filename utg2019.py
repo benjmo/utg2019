@@ -67,6 +67,9 @@ class Robot:
         self.y = y
         self.item = item
         self.id = id
+        self.last_command = 'NONE' 
+        self.last_command_x = 0
+        self.last_command_y = 0
 
     def has_radar(self):
         return self.item == 2
@@ -77,6 +80,82 @@ class Robot:
     def has_ore(self):
         return self.item == 4
 
+radar_placements = [(5,2), (5,11), (15, 2), (15, 11), (20, 2), (20, 11)]
+
+def command_robot_2(robot, position, ore_coords, radar_count, radar_cooldown):
+    cmd_given = False
+    if (not robot.has_radar() and radar_count < 5 and robot.x == 0 and radar_cooldown == 0):
+        print('REQUEST RADAR')
+        cmd_given = True
+
+    elif (radar_count < 5) and robot.has_radar() and robot.last_command == 'NONE':
+        if len(radar_placements) > 0:
+            place_radar_x, place_radar_y = radar_placements.pop(0)
+
+            robot.last_command = 'PLACE_RADAR'
+            robot.last_command_x = place_radar_x
+            robot.last_command_y = place_radar_y
+            print('DIG {} {}'.format(place_radar_x, place_radar_y))
+            
+            cmd_given = True
+
+    if (not cmd_given):
+        
+        if (robot.last_command == 'PLACE_RADAR') and robot.has_radar():
+            print('DIG {} {}'.format(robot.last_command_x, robot.last_command_y) )
+
+        else:
+
+            if (robot.last_command == 'PLACE_RADAR'):
+                robot.last_command = 'NONE'
+            
+            # has ore, return to base
+            if robot.has_ore():
+                print('MOVE 0 {}'.format(robot.y))
+            # no ore, search for some
+            elif len(ore_coords):
+                x, y = ore_coords.pop()
+                print('DIG {} {}'.format(x, y))
+            # no ore known at the moment, wait in the middle
+            else:
+                print('MOVE 0 8')
+
+
+def command_robot(robot, position, ore_coords, radar_count):
+    cmd_given = False
+
+    # initial setup for middle robot - get radar and plant in middle
+    if position == 2:
+        if turn == 0:
+            print('REQUEST RADAR')
+            cmd_given = True
+        elif robot.has_radar():
+            print('DIG 15 8')
+            cmd_given = True
+
+    if position == 3 and radar_count < 2:
+        # wait until we can get a radar then place it at coords
+        if (not robot.has_radar() ):
+            print("REQUEST RADAR")
+            cmd_given = True
+        else:
+            print('DIG 7 8')
+            cmd_given = True
+
+    if not cmd_given:
+        # has ore, return to base
+        if robot.has_ore():
+            print('MOVE 0 {}'.format(robot.y))
+        # no ore, search for some
+        elif len(ore_coords):
+            x, y = ore_coords.pop()
+            print('DIG {} {}'.format(x, y))
+        # no ore known at the moment, wait in the middle
+        else:
+            print('MOVE 15 8')
+
+
+# Deliver more ore to hq (left side of the map) than your opponent. Use radars to find ore but beware of traps!
 
 ########### MAIN ##########
 # setup game map
@@ -86,6 +165,9 @@ game_map = GameMap(width, height)
 # print(str(game_map.grid), file=sys.stderr)
 # ore = [['?' for i in range(width)] for j in range(height)]
 # print(ore, file=sys.stderr)
+
+my_robots = {}
+opp_robots = {}
 
 # game loop
 while True:
@@ -111,9 +193,8 @@ while True:
     entity_count, radar_cooldown, trap_cooldown = [int(i) for i in input().split()]
 
     radar_count = 0
-    # Create/update entities
-    my_robots = list()
-    opp_robots = list()
+
+
     for i in range(entity_count):
         # id: unique id of the entity
         # type: 0 for your robot, 1 for other robot, 2 for radar, 3 for trap
@@ -122,12 +203,31 @@ while True:
         id, type, x, y, item = [int(j) for j in input().split()]
 
         if type in {0, 1}:
+
             robot = Robot(x, y, item, id)
+
             if type == 0:
-                # our alive robots
-                my_robots.append(robot)
+
+                if id in my_robots:
+
+                    # our alive robots
+                    # my_robots.append(robot)
+                    my_robots[id].x = x
+                    my_robots[id].y = x
+                    my_robots[id].item = item
+                    my_robots[id].id = id
+                else:
+                    my_robots[id] = robot
+
+                log(id)
             else:
-                opp_robots.append(robot)
+                if id in opp_robots:
+                    opp_robots[id].x = x
+                    opp_robots[id].y = x
+                    opp_robots[id].item = item
+                    opp_robots[id].id = id
+                else:
+                    opp_robots[id] = robot 
 
         # Radars
         elif type == 2:
@@ -139,8 +239,9 @@ while True:
             game_map.get_cell(x, y).trap = 1
 
     ore_coords = game_map.get_ore_coordinates()
-    for position, curr_robot in enumerate(my_robots):
-        command_robot(curr_robot, position, ore_coords, radar_count)
+    for id, robot in my_robots.items():
+        position = 1 
+        command_robot_2(robot, position, ore_coords, radar_count, radar_cooldown)
     turn += 1
 
 
