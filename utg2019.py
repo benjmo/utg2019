@@ -235,6 +235,11 @@ def findClosestSafeOre(cell, ore_cells):
 def manhattanDistance(c1, c2):
     return abs(c1.x - c2.x) + abs(c1.y - c2.y)
 
+# return list of robots within dist of a given coord
+def robots_within_distance(robots, coord, dist):
+    for robot in robots.values():
+        if manhattanDistance( (robot.x, robot.y), coord) < dist:
+            yield robot;
 
 # Deliver more ore to hq (left side of the map) than your opponent. Use radars to find ore but beware of traps!
 
@@ -309,6 +314,7 @@ while True:
 
     ore_cells = game_map.get_ore_cells()
     radar_requested, trap_requested = False, False
+
     for id, robot in my_robots.items():
         command = command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown, game_map,
                                   radar_requested, trap_requested)
