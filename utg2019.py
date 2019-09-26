@@ -238,8 +238,17 @@ while True:
     ore_cells = game_map.get_ore_cells()
     for id, robot in my_robots.items():
         radar_requested, trap_requested = False, False
-        command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown, game_map,
-                        radar_requested, trap_requested)
+        command = command_robot_2(robot, ore_cells, radar_count, radar_cooldown, trap_cooldown, game_map,
+                                  radar_requested, trap_requested)
+
+        if command == 'REQUEST RADAR':
+            radar_requested = True
+        elif command == 'REQUEST TRAP':
+            trap_requested = True
+
+        command += ' {}'.format(robot.task)
+        print(command)
+        
     turn += 1
 
 
