@@ -8,7 +8,7 @@ def log(message):
 
 
 class Cell:
-    def __init__(self, x, y, ore='?', hole=0):
+    def __init__(self, x, y, ore=-1, hole=0):
         self.x = x
         self.y = y
         self.ore = ore
@@ -43,9 +43,6 @@ class Cell:
             log('cell (12,8) is safe')
         return True
 
-    def ore_left(self):
-        return int(self.ore) if self.ore != '?' else -1
-
     def __repr__(self):
         return "({},{}):[{},{}]".format(self.x, self.y, self.ore, self.hole)
 
@@ -74,7 +71,7 @@ class GameMap:
         coords = list()
         for row in self.grid:
             for cell in row:
-                if cell.ore not in {'?', '0'} and not cell.has_trap():
+                if cell.ore > 0 and not cell.has_trap():
                     coords.append(cell)
         return coords
 
@@ -82,7 +79,7 @@ class GameMap:
         cells = list()
         for row in self.grid:
             for cell in row[restrict:]:
-                if not cell.hole and cell.ore == '?' and not cell.has_trap():
+                if not cell.hole and cell.ore == -1 and not cell.has_trap():
                     cells.append(cell)
         return cells
 
@@ -90,7 +87,7 @@ class GameMap:
         candidates = list()
         for row in self.grid:
             for cell in row:
-                if not cell.we_dug and cell.ore_left() > 1 and not cell.has_trap() and cell.is_safe():
+                if not cell.we_dug and cell.ore > 1 and not cell.has_trap() and cell.is_safe():
                     candidates.append(cell)
 
         return candidates
@@ -155,6 +152,7 @@ ore_remaining_radar_threshold = 15
 trap_placement_turn_threshold = 150
 early_blind_dig_column_restrict = 3
 early_blind_dig_turns = 2
+send_bots_to_different_ore = False
 
 
 def update_task(robot, game_state):
@@ -236,8 +234,17 @@ def find_ore(robot, ore_cells, game_map, game_state):
             # try a risky one
             closest_ore = find_closest_ore(my_cell, ore_cells)
             cmd_given = 'DIG {} {}'.format(closest_ore.x, closest_ore.y)
-        closest_ore.ore -= 1  # decrement count so other bots don't target same ore
+
+        # try to send bots to different ores
         # (doesn't matter if we don't dig it this turn - map is refreshed each turn)
+        if send_bots_to_different_ore:  # no bots to same ore
+            closest_ore.ore = 0
+        else:  # decrement count so other bots don't target empty ore
+            closest_ore.ore -= 1
+
+        # remove empty ore from list
+        if closest_ore.ore == 0:
+            ore_cells.remove(closest_ore)
 
     # no (safe) ore found - blind dig
     if not cmd_given:
@@ -368,7 +375,7 @@ while True:
         for j in range(width):
             # ore: amount of ore or "?" if unknown
             currOre = inputs[2*j]
-            game_map.grid[i][j].ore = currOre
+            game_map.grid[i][j].ore = -1 if currOre == '?' else int(currOre)
 
             # hole: 1 if cell has a hole
             hole = int(inputs[2*j+1])
@@ -431,7 +438,7 @@ while True:
     ore_cells = game_map.get_ore_cells()
     for cell in ore_cells:
         if not cell.has_trap():
-            game_state.ore_available += int(cell.ore)
+            game_state.ore_available += cell.ore
 
     game_state.radar_requested, game_state.trap_requested = False, False
 
