@@ -36,6 +36,9 @@ class Cell:
             return True
 
     def is_safe(self):
+        if self.x == 16 and self.y == 12:
+            log(self.hole)
+            log(self.we_dug)
         if self.hole and not self.we_dug:
             return False
         return True
@@ -149,6 +152,7 @@ class Robot:
         self.y = y
         self.item = item
         self.id = id
+        self.last_command = None
 
         self.task = None
         self.target_x = None
@@ -174,8 +178,8 @@ class GameState:
         self.opp_score = 0
         self.radar_cooldown = 0
         self.trap_cooldown = 0
-        self.radar_requested = 0
-        self.trap_requested = 0
+        self.radar_requested = False
+        self.trap_requested = False
         self.ore_available = 0
         self.turns_since_trap_avail = 0
         self.next_radar_coords = None
@@ -232,21 +236,21 @@ all_radar_placements = deepcopy(remaining_radar_placements)
 ore_remaining_radar_threshold = 15
 
 # STOP PLACING TRAPS AFTER TURN X
-trap_placement_turn_threshold = 150
+trap_placement_turn_threshold = 100
 
 # DON'T DIG IN FIRST X COLUMNS FOR FIRST Y TURNS
 early_blind_dig_column_restrict = 3
-early_blind_dig_turns = 2
+early_blind_dig_turns = 10
 
 # DON'T SEND BOTS TO SAME ORE, EVEN IF >1 ORE LEFT
-send_bots_to_different_ore = False
+send_bots_to_different_ore = True
 
 # EXTRA TURNS TO WAIT BETWEEN REQUESTING TRAP
-wait_turns_after_trap_cooldown = 2
+wait_turns_after_trap_cooldown = 6
 
 # MOVE TO NEXT RADAR DURING FIRST X TURNS
 move_to_radar_turn_threshold = 50
-max_bots_moving_to_radar = 2
+max_bots_moving_to_radar = 3
 
 # PREDICT WHETHER FIRST COLUMN TRAPPED
 trap_avoidance_active = False
@@ -345,22 +349,22 @@ def find_ore(robot, ore_cells, game_map, game_state):
         if closest_ore:  # close safe ore exists
             cmd_given = 'DIG {} {}'.format(closest_ore.x, closest_ore.y)
             # closest_ore.we_dug = True
-        else:
-            print('ore exists but closest safe ore is none - trying a risky one', file=sys.stderr)
-            # try a risky one
-            closest_ore = find_closest_ore(my_cell, ore_cells)
-            cmd_given = 'DIG {} {}'.format(closest_ore.x, closest_ore.y)
+        # else:
+        #     print('ore exists but closest safe ore is none - trying a risky one', file=sys.stderr)
+        #     # try a risky one
+        #     closest_ore = find_closest_ore(my_cell, ore_cells)
+        #     cmd_given = 'DIG {} {}'.format(closest_ore.x, closest_ore.y)
 
-        # try to send bots to different ores
-        # (doesn't matter if we don't dig it this turn - map is refreshed each turn)
-        if send_bots_to_different_ore:  # no bots to same ore
-            closest_ore.ore = 0
-        else:  # decrement count so other bots don't target empty ore
-            closest_ore.ore -= 1
+            # try to send bots to different ores
+            # (doesn't matter if we don't dig it this turn - map is refreshed each turn)
+            if send_bots_to_different_ore:  # no bots to same ore
+                closest_ore.ore = 0
+            else:  # decrement count so other bots don't target empty ore
+                closest_ore.ore -= 1
 
-        # remove empty ore from list
-        if closest_ore.ore == 0:
-            ore_cells.remove(closest_ore)
+            # remove empty ore from list
+            if closest_ore.ore == 0:
+                ore_cells.remove(closest_ore)
 
     # no (safe) ore found - blind dig
     if not cmd_given:
@@ -437,15 +441,15 @@ def blind_dig(robot, game_map, turn):
     restrict_columns = early_blind_dig_column_restrict if turn < early_blind_dig_turns else 1
 
     robot_cell = game_map.get_cell(robot.x, robot.y)
-    dig_cell = get_closest_safe_cell(robot_cell, game_map)
+    dig_cell = get_closest_safe_cell(robot_cell, game_map, restrict_columns)
 
     if not dig_cell:
         log('tried blind dig but no safe cells')
     return dig_cell
 
 
-def get_closest_safe_cell(target_cell, game_map):
-    safe_cells = game_map.get_blind_dig_cells()
+def get_closest_safe_cell(target_cell, game_map, restrict=1):
+    safe_cells = game_map.get_blind_dig_cells(restrict)
     if safe_cells:
         closest = safe_cells[0]
         for cell in safe_cells:
@@ -590,9 +594,15 @@ while True:
             if hole and not game_map.grid[i][j].hole:
                 game_map.grid[i][j].turn_dug = game_state.turn
 
-                # we had dig command at this location last turn
-                if (j, i) in game_state.dug_last_turn:
-                    game_map.grid[i][j].we_dug = True
+                # # we had dig command at this location last turn
+                # if (j, i) in game_state.dug_last_turn:
+                #     game_map.grid[i][j].we_dug = True
+                #     log(game_map.grid[i][j].we_dug + j + i)
+
+                for robot in my_robots.values():
+                    if robot.last_command == 'DIG' and manhattan_distance(game_map.grid[i][j], game_map.get_cell(robot.x, robot.y)) <= 1:
+                        game_map.grid[i][j].we_dug = True
+                        log(game_map.grid[i][j].we_dug + j + i)
 
             game_map.grid[i][j].hole = hole
 
@@ -653,9 +663,12 @@ while True:
             log('lost radar at ({},{}) reinserted'.format(cell.x, cell.y))
 
     ore_cells = game_map.get_ore_cells()
+    game_state.ore_available = 0
     for cell in ore_cells:
         if not cell.has_trap():
             game_state.ore_available += cell.ore
+
+    log("ore available: " + str(game_state.ore_available))
 
     game_state.radar_requested, game_state.trap_requested = False, False
     game_state.num_bots_moving_to_radar = 0
@@ -670,8 +683,10 @@ while True:
             command = command_robot(robot, ore_cells, game_map, game_state)
             # hole digging
             if command[:3] == 'DIG':
-                x = command[4]
-                y = command[6]
+                robot.last_command = 'DIG'
+                splits = command.split()
+                x = int(splits[1])
+                y = int(splits[2])
                 game_state.dug_last_turn.add((x, y))
 
             command += ' {}'.format(robot.task)
