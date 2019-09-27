@@ -37,11 +37,7 @@ class Cell:
 
     def is_safe(self):
         if self.hole and not self.we_dug:
-            if self.x == 12 and self.y == 8:
-                log('cell (12,8) is NOT safe')
             return False
-        if self.x == 12 and self.y == 8:
-            log('cell (12,8) is safe')
         return True
 
     def __repr__(self):
@@ -298,7 +294,7 @@ def update_task(robot, game_state):
             robot.task = 'ORE'
 
 
-def place_radar(robot, game_state):
+def place_radar(robot, game_map, game_state):
     cmd_given = None
     # Robot doesn't have radar - request
     if not robot.has_radar():
@@ -308,6 +304,12 @@ def place_radar(robot, game_state):
 
     # Robot has radar - proceed to target
     else:
+        # radar target location not safe - shift it
+        target_cell = game_map.get_cell(robot.target_x, robot.target_y)
+        if not target_cell.is_safe():
+            new_radar_target = get_closest_safe_cell(target_cell, game_map)
+            robot.target_x, robot.target_y = new_radar_target.x, new_radar_target.y
+
         cmd_given = 'DIG {} {}'.format(robot.target_x, robot.target_y)
         game_map.get_cell(robot.target_x, robot.target_y).we_dug = True
 
@@ -403,7 +405,7 @@ def command_robot(robot, ore_cells, game_map, game_state):
 
     # Perform tasks
     if robot.task == 'RADAR':
-        cmd_given = place_radar(robot, game_state)
+        cmd_given = place_radar(robot, game_map, game_state)
 
     elif robot.task == 'TRAP':
         cmd_given = place_trap(robot, game_map, game_state)
@@ -433,15 +435,22 @@ def blind_dig(robot, game_map, turn):
     # try to dig further in on first 2 turns
     restrict_columns = early_blind_dig_column_restrict if turn < early_blind_dig_turns else 1
 
-    safe_cells = game_map.get_blind_dig_cells(restrict_columns)
+    robot_cell = game_map.get_cell(robot.x, robot.y)
+    dig_cell = get_closest_safe_cell(robot_cell, game_map)
+
+    if not dig_cell:
+        log('tried blind dig but no safe cells')
+    return dig_cell
+
+
+def get_closest_safe_cell(target_cell, game_map):
+    safe_cells = game_map.get_blind_dig_cells()
     if safe_cells:
-        robot_cell = game_map.get_cell(robot.x, robot.y)
         closest = safe_cells[0]
         for cell in safe_cells:
-            if manhattan_distance(cell, robot_cell) < manhattan_distance(closest, robot_cell):
+            if manhattan_distance(cell, target_cell) < manhattan_distance(closest, target_cell):
                 closest = cell
         return closest
-    print('tried blind dig but no safe cells, len = {}'.format(len(safe_cells)), file=sys.stderr)
     return None
 
 
