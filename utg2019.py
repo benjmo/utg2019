@@ -335,63 +335,35 @@ def update_task(robot, game_state):
         # Check item tasks if robot is in HQ
         task_assigned = False
 
-        # if place_trap_with_pattern_switch and game_state.turn < stop_placing_traps_turn_threshold:
-        #
-        #     # First check that trap_placer_robot_id is still alive and if not asign it to the first alive id
-        #     if not game_state.trap_placer_robot_id or game_state.trap_placer_robot_id not in my_robots:
-        #         next_id = None
-        #
-        #         # wait until robot is at HQ
-        #         for r in my_robots.values():
-        #             if r.x == 0 and not r.has_radar():
-        #                 next_id = r.id
-        #
-        #         if next_id:
-        #             log('robot {} has died... {} will be the next trap placer.'.format(game_state.trap_placer_robot_id, next_id))
-        #             game_state.trap_placer_robot_id = next_id
-        #         else:
-        #             log('robot {} has died... waiting for another robot to reach HQ to become the next trap placer'.format(game_state.trap_placer_robot_id))
-        #     else:
-        #         log("robot id" + str(robot.id))
-        #         log("trap robot id" + str(game_state.trap_placer_robot_id))
-        #         if robot.id == game_state.trap_placer_robot_id and not task_assigned:
-        #             log("in trap placing condition")
-        #
-        #             # get the enemy and friendly robots within kill range of given traps
-        #             # check if we can kill more enemy robots than friendlies
-        #             affected_cells = get_affected_cells_for_trap_at(game_map.get_cell(trap_pattern_coords[0].x, trap_pattern_coords[0].y), game_map)
-        #             log(affected_cells)
-        #             my_trapped_robot_count = get_num_robots_in(affected_cells, my_robots.values())
-        #             opp_trapped_robot_count = get_num_robots_in(affected_cells, opp_robots.values())
-        #
-        #             log('Enemies vs friendlies in range of trap ({}, {}): {} vs {}'.format(
-        #                     trap_pattern_coords[0].x, trap_pattern_coords[0].y,
-        #                     opp_trapped_robot_count, my_trapped_robot_count))
-        #
-        #             if my_trapped_robot_count < opp_trapped_robot_count and opp_trapped_robot_count >= min_trapped_enemy_robots:
-        #                 robot.task = 'TRIGGER_TRAP'
-        #                 task_assigned = True
-        #             else:
-        #                 robot.task = 'TRAP_PATTERN'
-        #                 task_assigned = True
+        if place_trap_with_pattern_switch and game_state.turn < stop_placing_traps_turn_threshold:
+            
+            # First check that trap_placer_robot_id is still alive and if not asign it to the first alive id 
+            if not game_state.trap_placer_robot_id or game_state.trap_placer_robot_id not in my_robots:
+                next_id = None
 
-        if robot.x == 0 and not task_assigned:
-            # check if radar is available
-            if game_state.radar_ready():
-                robot.task = 'RADAR'
-                robot.target_x, robot.target_y = remaining_radar_placements.pop(0)
-                task_assigned = True
-                game_state.next_radar_coords = (robot.target_x, robot.target_y)
-            # check if trap is available
-            elif game_state.trap_ready():
-
-                if place_trap_with_pattern_switch and game_state.turn < stop_placing_traps_turn_threshold:
-                    affected_cells = get_affected_cells_for_trap_at(
-                        game_map.get_cell(trap_pattern_coords[0].x, trap_pattern_coords[0].y), game_map)
+                # wait until robot is at HQ
+                for r in my_robots.values():
+                    if r.x == 0 and not r.has_radar():
+                        next_id = r.id
+                    
+                if next_id:
+                    log('robot {} has died... {} will be the next trap placer.'.format(game_state.trap_placer_robot_id, next_id))
+                    game_state.trap_placer_robot_id = next_id
+                else:
+                    log('robot {} has died... waiting for another robot to reach HQ to become the next trap placer'.format(game_state.trap_placer_robot_id))
+            else:
+                log("robot id" + str(robot.id))
+                log("trap robot id" + str(game_state.trap_placer_robot_id))
+                if robot.id == game_state.trap_placer_robot_id and not task_assigned:
+                    log("in trap placing condition")
+                    
+                    # get the enemy and friendly robots within kill range of given traps 
+                    # check if we can kill more enemy robots than friendlies
+                    affected_cells = get_affected_cells_for_trap_at(game_map.get_cell(trap_pattern_coords[0].x, trap_pattern_coords[0].y), game_map)
                     log(affected_cells)
                     my_trapped_robot_count = get_num_robots_in(affected_cells, my_robots.values())
                     opp_trapped_robot_count = get_num_robots_in(affected_cells, opp_robots.values())
-
+                    
                     log('Enemies vs friendlies in range of trap ({}, {}): {} vs {}'.format(
                             trap_pattern_coords[0].x, trap_pattern_coords[0].y,
                             opp_trapped_robot_count, my_trapped_robot_count))
@@ -402,10 +374,19 @@ def update_task(robot, game_state):
                     else:
                         robot.task = 'TRAP_PATTERN'
                         task_assigned = True
-                if not robot.task:
-                    robot.task = 'TRAP'
-                    task_assigned = True
-        # go and get some oreq
+
+        if robot.x == 0 and not task_assigned:
+            # check if radar is available
+            if game_state.radar_ready():
+                robot.task = 'RADAR'
+                robot.target_x, robot.target_y = remaining_radar_placements.pop(0)
+                task_assigned = True
+                game_state.next_radar_coords = (robot.target_x, robot.target_y)
+            # check if trap is available
+            elif game_state.trap_ready():
+                robot.task = 'TRAP'
+                task_assigned = True
+        # go and get some ore
         if not task_assigned:
             robot.task = 'ORE'
 
@@ -430,7 +411,6 @@ def place_radar(robot, game_map, game_state):
         # game_map.get_cell(robot.target_x, robot.target_y).we_dug = True
 
     return cmd_given
-
 
 def place_trap(robot, game_map, game_state):
     cmd_given = None
