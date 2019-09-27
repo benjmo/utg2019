@@ -355,8 +355,7 @@ def update_task(robot, game_state):
                 log("robot id" + str(robot.id))
                 log("trap robot id" + str(game_state.trap_placer_robot_id))
                 if robot.id == game_state.trap_placer_robot_id and not task_assigned:
-                    log("in trap placing condition")
-                    
+
                     # get the enemy and friendly robots within kill range of given traps 
                     # check if we can kill more enemy robots than friendlies
                     affected_cells = get_affected_cells_for_trap_at(game_map.get_cell(trap_pattern_coords[0].x, trap_pattern_coords[0].y), game_map)
@@ -376,8 +375,26 @@ def update_task(robot, game_state):
                         task_assigned = True
 
         if robot.x == 0 and not task_assigned:
+
+            # DETONATE TRAP?
+            # get the enemy and friendly robots within kill range of given traps
+            # check if we can kill more enemy robots than friendlies
+            affected_cells = get_affected_cells_for_trap_at(
+                game_map.get_cell(trap_pattern_coords[0].x, trap_pattern_coords[0].y), game_map)
+            log(affected_cells)
+            my_trapped_robot_count = get_num_robots_in(affected_cells, my_robots.values())
+            opp_trapped_robot_count = get_num_robots_in(affected_cells, opp_robots.values())
+
+            log('Enemies vs friendlies in range of trap ({}, {}): {} vs {}'.format(
+                trap_pattern_coords[0].x, trap_pattern_coords[0].y,
+                opp_trapped_robot_count, my_trapped_robot_count))
+
+            if my_trapped_robot_count < opp_trapped_robot_count and opp_trapped_robot_count >= min_trapped_enemy_robots:
+                robot.task = 'TRIGGER_TRAP'
+                task_assigned = True
+
             # check if radar is available
-            if game_state.radar_ready():
+            elif game_state.radar_ready():
                 robot.task = 'RADAR'
                 robot.target_x, robot.target_y = remaining_radar_placements.pop(0)
                 task_assigned = True
@@ -431,17 +448,17 @@ def place_trap(robot, game_map, game_state):
 
 def place_trap_with_pattern(robot, game_map, game_state, trap_pattern_coords):
     cmd_given = None
-    if not robot.has_trap():
-        cmd_given = 'REQUEST TRAP'
+    # place traps in a pattern to hopefully kill some enemies
+    my_cell = game_map.get_cell(robot.x, robot.y)
+    next_trap_coord = get_next_trap_pattern_coord(trap_pattern_coords, game_map, my_cell)
+    if game_state.turn < stop_placing_traps_turn_threshold and next_trap_coord:
+        if not robot.has_trap():
+            cmd_given = 'REQUEST TRAP'
+        cmd_given = 'DIG {} {}'.format(next_trap_coord.x, next_trap_coord.y)
     else:
-        # place traps in a pattern to hopefully kill some enemies
-        my_cell = game_map.get_cell(robot.x, robot.y) 
-        next_trap_coord = get_next_trap_pattern_coord(trap_pattern_coords, game_map, my_cell)
-        if game_state.turn < stop_placing_traps_turn_threshold and next_trap_coord:
-            cmd_given = 'DIG {} {}'.format(next_trap_coord.x, next_trap_coord.y)
-        else:
-            log('Not placing a trap. All traps have been placed or turn limit is exceeded.')
-            cmd_given = 'WAIT'
+        log('Not placing a trap. All traps have been placed or turn limit is exceeded.')
+        cmd_given = 'WAIT'
+
     robot.task = None
     return cmd_given
 
@@ -541,11 +558,13 @@ def command_robot(robot, ore_cells, game_map, game_state):
     
     elif robot.task == 'TRAP_PATTERN':
         cmd_given = place_trap_with_pattern(robot, game_map, game_state, trap_pattern_coords)
+        if not cmd_given:
+            robot.task = 'ORE'
     
     elif robot.task == 'TRIGGER_TRAP':
         cmd_given = trigger_trap(robot, game_map, game_state)
 
-    elif robot.task == 'ORE':
+    if robot.task == 'ORE':
         cmd_given = find_ore(robot, ore_cells, game_map, game_state)
 
     if robot.task == 'RETURN':
