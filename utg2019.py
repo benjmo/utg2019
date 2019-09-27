@@ -92,6 +92,14 @@ class GameMap:
 
         return candidates
 
+    def get_friendly_traps(self):
+        traps = list()
+        for row in self.grid:
+            for cell in row:
+                traps.append((cell.x, cell.y))
+
+        return traps
+
 
 class Robot:
     def __init__(self, x, y, item, id):
@@ -156,6 +164,30 @@ class GameState:
 
 
 # GLOBAL PARAMS
+stop_placing_traps_turn_threshold = 15
+trap_pattern_coords = []
+
+trap_placer_robot_id = 2 
+
+def generate_trap_patern_coords(start, end):
+    if (start.x != end.x):
+        log('ERROR: generate_trap_patern_coords(...) arguments must have same x coords.')
+        return []
+    else:
+        return [(start.x, i) for range (start.y, end.y + 1)]
+
+
+def get_next_trap_pattern_coord(trap_pattern_coords, game_state, current_cell=None):
+    trap_pattern_coords
+    placed_traps = game_state.get_friendly_traps()
+
+    not_placed = [coord for c in trap_pattern_coords not in placed_traps ]
+
+    if current_cell:
+        return find_closest_coord(current_cell, not_placed)
+    else:
+        return not_placed[0]
+
 
 # remaining_radar_placements = [(5, 3), (5, 11), (10, 7), (15, 11), (15, 3), (20, 7), (25, 3), (25, 11), (20, 0), (20, 14), (29, 7),
 #                     (10, 0), (10, 14), (20, 0), (20, 14), (0, 7)]
@@ -184,8 +216,12 @@ wait_turns_after_trap_cooldown = 2
 move_to_radar_turn_threshold = 50
 max_bots_moving_to_radar = 2
 
+robot_waiting_trap_id = None 
+
+place_trap_with_pattern_switch = False 
 
 def update_task(robot, game_state):
+
     # Clear item placement tasks
     if (robot.collected_item and ((robot.task == 'RADAR' and not robot.has_radar()) or
                                   (robot.task == 'TRAP' and not robot.has_trap())))\
@@ -207,6 +243,14 @@ def update_task(robot, game_state):
     if not robot.task:
         # Check item tasks if robot is in HQ
         task_assigned = False
+
+        # TODO we should pick the closest robot to the traps? 
+        next_trap_pattern_coord = get_next_trap_pattern_coord(trap_pattern_coords, game_state, (robot.x, robot.y))
+        if not next_trap_pattern_coord and not robot_waiting_trap_id:
+            robot.task = 'WAIT_TRAP'
+            robot_waiting_trap_id = robot.id 
+            task_assigned = True
+
         if robot.x == 0:
             # check if radar is available
             if game_state.radar_ready():
@@ -256,6 +300,45 @@ def place_trap(robot, game_map, game_state):
                 cmd_given = 'DIG {} {}'.format(dig_cell.x, dig_cell.y)
     return cmd_given
 
+
+def place_trap_with_pattern(robot, game_map, game_state, trap_pattern_coords):
+    cmd_given = None
+    if not robot.has_trap():
+        cmd_given = 'REQUEST TRAP'
+    else:
+        # place traps in a pattern to hopefully kill some enemies 
+        next_trap_coord = get_next_trap_pattern_coord(trap_candidate_coords, game_state, my_cell)
+        if turn < stop_placing_traps_turn_threshold and next_trap_coord:
+            cmd_given = 'DIG {} {}'.format(next_trap_coord.x, next_trap_coord.y)
+        else:
+            my_cell = game_map.get_cell(robot.x, robot.y)
+            trap_candidate_coords = game_map.get_trap_candidate_coords()
+            if trap_candidate_coords:
+                closest_coord = find_closest_ore(my_cell, trap_candidate_coords)
+                cmd_given = 'DIG {} {}'.format(closest_coord.x, closest_coord.y)
+            else:
+                dig_cell = blind_dig(robot, game_map, game_state.turn)
+                if dig_cell:
+                    cmd_given = 'DIG {} {}'.format(dig_cell.x, dig_cell.y)
+    return cmd_given
+
+def move_to_trap_and_wait_to_trigger(robot, game_map, game_state):
+    cmd_given = None
+
+    # find closest trap in trap pattern to me
+    my_cell = game_map.get_cell(robot.x, robot.y)
+    move_to = find_closest_coord(my_cell, trap_pattern_coords)
+
+    if move_to:
+        if (move_to.x == my_cell.x and move_to.y == my_cell.y):
+            
+            
+            
+            cmd_given = 'WAIT'
+        else:
+            cmd_given = 'MOVE {} {}'.format(move_to.x, move_to.y)
+
+    return cmd_given
 
 def find_ore(robot, ore_cells, game_map, game_state):
     cmd_given = None
@@ -313,7 +396,12 @@ def command_robot(robot, ore_cells, game_map, game_state):
         cmd_given = place_radar(robot, game_state)
 
     elif robot.task == 'TRAP':
-        cmd_given = place_trap(robot, game_map, game_state)
+        if place_trap_with_pattern_switch:
+            cmd_given = place_trap_with_pattern(robot, game_map, game_state)
+        else:
+            cmd_given = place_trap(robot, game_map, game_state)
+    elif robot.task == 'WAIT_TRAP':
+        cmd_given = move_to_trap_and_wait_to_trigger(robot, game_map, game_state)
 
     elif robot.task == 'ORE':
         cmd_given = find_ore(robot, ore_cells, game_map, game_state)
@@ -365,6 +453,18 @@ def find_closest_ore(cell, ore_cells):
             closest = ore_cell
     return closest
 
+def find_closest_coord(cell, coords):
+    """
+    Find closest cell in coord list to given cell 
+    :param cell: grid location x,y
+    :param coords: list of cells with x,y coordinates
+    :return: return closest cell
+    """
+    closest = coords[0]
+    for coord in coords:
+        if manhattan_distance(cell, coord) < manhattan_distance(cell, coord):
+            closest = coord
+    return closest
 
 def find_closest_safe_ore(cell, ore_cells):
     """
@@ -395,6 +495,7 @@ def robots_within_distance_from_cell(robots, game_map, target_cell, dist):
         if manhattan_distance(robot_cell, target_cell) < dist:
             robots_in_range.append(robot)
     return robots_in_range
+
 
 # return set of coordinates that will be affected if trap is activated at given cell
 def get_affected_cells_for_trap_at(base_cell, game_map, visited_cells=set()):
@@ -450,6 +551,9 @@ game_state.turn = 0
 
 my_robots = {}
 opp_robots = {}
+
+
+trap_pattern_coords = generate_trap_patern_coords( (2, 14), (2, 18))
 
 # game loop
 while True:
