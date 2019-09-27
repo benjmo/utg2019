@@ -124,8 +124,20 @@ class Robot:
 
 # remaining_radar_placements = [(5, 3), (5, 11), (10, 7), (15, 11), (15, 3), (20, 7), (25, 3), (25, 11), (20, 0), (20, 14), (29, 7),
 #                     (10, 0), (10, 14), (20, 0), (20, 14), (0, 7)]
-remaining_radar_placements = [(5, 5), (10, 7), (15, 11), (15, 3), (20, 7), (25, 3), (25, 11), (20, 0), (20, 14),
-                              (29, 7), (10, 0), (10, 14), (20, 0), (20, 14), (0, 7), (5, 11)]
+
+remaining_radar_placements = [(10, 7), (15, 11), (15, 3), (20, 7), (25, 3), (25, 11), (20, 0), (20, 14),
+                              (10, 0), (10, 14), (29, 7), (20, 0), (20, 14), (5, 3), (5, 11), (0, 7)]
+
+# alternative config:
+# remaining_radar_placements = [(10, 3), (10, 11), (15, 7), (20, 3), (20, 11), (15, 0), (15, 14), (25, 7),
+#                              (5, 7), (27, 2), (27, 12)]
+
+# x value to shift radar pos by
+shift_x = 0
+if shift_x != 0:
+    for i, coord in enumerate(remaining_radar_placements):
+        remaining_radar_placements[i] = (min(coord[0] + shift_x, 29), coord[1])
+
 all_radar_placements = deepcopy(remaining_radar_placements)
 
 ore_remaining_radar_threshold = 15
