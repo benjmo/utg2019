@@ -28,3 +28,13 @@ TODO DAY2 PLANS:
 - improved radar placement
 - less risky mining/radar placement - analyze silver boss
 - more aggressive trap tactics?
+
+Idea for ore + trap tactic
+- General idea for this is that we place an ore and a trap on top of the ore close to HQ so that enemy bot will prioritise the ore and go kaboom
+- implementation possibility:
+    -flag "execute_bait_mission=True" on a given turn and assign the mission task to a robot with ore and another robot (preferably at base)
+    -then, for these two robots:
+        -the one with ore will wait next to an enemy dug hole near-ish HQ (let's say around x > 4 and x < 10)
+        -the other one will request trap and go to same cell as ^
+    -on the same turn, insert ore and place trap at the cell (make sure to stand to the right of the cell to run away afterwards)
+    -resume normal duties, turn off the bait_mission flag
