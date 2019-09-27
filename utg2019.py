@@ -289,7 +289,7 @@ early_blind_dig_turns = 10
 send_bots_to_different_ore = True
 
 # EXTRA TURNS TO WAIT BETWEEN REQUESTING TRAP
-wait_turns_after_trap_cooldown = 6
+wait_turns_after_trap_cooldown = 8
 
 # MOVE TO NEXT RADAR DURING FIRST X TURNS
 move_to_radar_turn_threshold = 50
@@ -473,11 +473,21 @@ def find_ore(robot, ore_cells, game_map, game_state):
         if closest_ore:  # close safe ore exists
             cmd_given = 'DIG {} {}'.format(closest_ore.x, closest_ore.y)
             # closest_ore.we_dug = True
-        # else:
-        #     print('ore exists but closest safe ore is none - trying a risky one', file=sys.stderr)
-        #     # try a risky one
-        #     closest_ore = find_closest_ore(my_cell, ore_cells)
-        #     cmd_given = 'DIG {} {}'.format(closest_ore.x, closest_ore.y)
+            # try to send bots to different ores
+            # (doesn't matter if we don't dig it this turn - map is refreshed each turn)
+            if send_bots_to_different_ore:  # no bots to same ore
+                closest_ore.ore = 0
+            else:  # decrement count so other bots don't target empty ore
+                closest_ore.ore -= 1
+
+            # remove empty ore from list
+            if closest_ore.ore == 0:
+                ore_cells.remove(closest_ore)
+        elif game_state.turn > 150:
+            print('ore exists but closest safe ore is none - trying a risky one', file=sys.stderr)
+            # try a risky one
+            closest_ore = find_closest_ore(my_cell, ore_cells)
+            cmd_given = 'DIG {} {}'.format(closest_ore.x, closest_ore.y)
 
             # try to send bots to different ores
             # (doesn't matter if we don't dig it this turn - map is refreshed each turn)
