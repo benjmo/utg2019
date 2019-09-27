@@ -182,6 +182,7 @@ class GameState:
         self.num_bots_moving_to_radar = 0
         self.first_col_trapped = set()
         self.my_bots_alive = 5
+        self.dug_last_turn = set()
 
     def update_turns_since_trap(self):
         # set turns since trap
@@ -311,7 +312,7 @@ def place_radar(robot, game_map, game_state):
             robot.target_x, robot.target_y = new_radar_target.x, new_radar_target.y
 
         cmd_given = 'DIG {} {}'.format(robot.target_x, robot.target_y)
-        game_map.get_cell(robot.target_x, robot.target_y).we_dug = True
+        # game_map.get_cell(robot.target_x, robot.target_y).we_dug = True
 
     return cmd_given
 
@@ -343,7 +344,7 @@ def find_ore(robot, ore_cells, game_map, game_state):
 
         if closest_ore:  # close safe ore exists
             cmd_given = 'DIG {} {}'.format(closest_ore.x, closest_ore.y)
-            closest_ore.we_dug = True
+            # closest_ore.we_dug = True
         else:
             print('ore exists but closest safe ore is none - trying a risky one', file=sys.stderr)
             # try a risky one
@@ -589,6 +590,10 @@ while True:
             if hole and not game_map.grid[i][j].hole:
                 game_map.grid[i][j].turn_dug = game_state.turn
 
+                # we had dig command at this location last turn
+                if (j, i) in game_state.dug_last_turn:
+                    game_map.grid[i][j].we_dug = True
+
             game_map.grid[i][j].hole = hole
 
             # clear trap info
@@ -658,11 +663,23 @@ while True:
     if trap_avoidance_active:
         game_map.check_first_column_trapped(game_state)
 
+    game_state.dug_last_turn.clear()
+
     for id, robot in my_robots.items():
         if not robot.dead:
             command = command_robot(robot, ore_cells, game_map, game_state)
+            # hole digging
+            if command[:3] == 'DIG':
+                x = command[4]
+                y = command[6]
+                game_state.dug_last_turn.add((x, y))
+
             command += ' {}'.format(robot.task)
             print(command)
+
+
+
+
         else:
             print('WAIT I THINK I AM DEAD')
 
