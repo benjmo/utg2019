@@ -128,6 +128,8 @@ class GameState:
         self.trap_requested = 0
         self.ore_available = 0
         self.turns_since_trap_avail = 0
+        self.next_radar_coords = None
+        self.num_bots_moving_to_radar = 0
 
     def update_turns_since_trap(self):
         # set turns since trap
@@ -147,6 +149,10 @@ class GameState:
                and not self.trap_requested \
                and self.turns_since_trap_avail >= wait_turns_after_trap_cooldown \
                and self.turn < trap_placement_turn_threshold
+
+    def should_move_to_radar(self):
+        return self.next_radar_coords and self.turn < move_to_radar_turn_threshold \
+               and self.num_bots_moving_to_radar < max_bots_moving_to_radar
 
 
 # GLOBAL PARAMS
@@ -175,6 +181,8 @@ early_blind_dig_column_restrict = 3
 early_blind_dig_turns = 2
 send_bots_to_different_ore = False
 wait_turns_after_trap_cooldown = 2
+move_to_radar_turn_threshold = 50
+max_bots_moving_to_radar = 2
 
 
 def update_task(robot, game_state):
@@ -182,10 +190,17 @@ def update_task(robot, game_state):
     if (robot.collected_item and ((robot.task == 'RADAR' and not robot.has_radar()) or
                                   (robot.task == 'TRAP' and not robot.has_trap())))\
             or (robot.task == 'RETURN' and robot.x == 0):
+
+        # clear game state vars
+        if robot.task == 'RADAR':
+            game_state.next_radar_coords = None
+
+        # clear robot task
         print('Task complete - clearing'.format(robot.has_radar()), file=sys.stderr)
         robot.task = None
         robot.collected_item = False
         robot.target_x, robot.target_y = None, None
+
     elif robot.has_ore():
         robot.task = 'RETURN'
 
@@ -198,6 +213,7 @@ def update_task(robot, game_state):
                 robot.task = 'RADAR'
                 robot.target_x, robot.target_y = remaining_radar_placements.pop(0)
                 task_assigned = True
+                game_state.next_radar_coords = (robot.target_x, robot.target_y)
             # check if trap is available
             elif game_state.trap_ready():
                 robot.task = 'TRAP'
@@ -270,13 +286,20 @@ def find_ore(robot, ore_cells, game_map, game_state):
 
     # no (safe) ore found - blind dig
     if not cmd_given:
-        if not game_state.radar_cooldown:  # no ore, and no radar placement right now
+        if game_state.radar_ready():  # no ore, and no radar placement right now
             robot.task = "RETURN"
         else:
-            print('trying blind dig', file=sys.stderr)
-            dig_cell = blind_dig(robot, game_map, game_state.turn)
-            if dig_cell:
-                cmd_given = 'DIG {} {}'.format(dig_cell.x, dig_cell.y)
+            # inside early game window, move towards next radar placement
+            if game_state.should_move_to_radar():
+                log('moving to next radar location')
+                move_x, move_y = game_state.next_radar_coords
+                cmd_given = 'MOVE {} {}'.format(move_x, move_y)
+                game_state.num_bots_moving_to_radar += 1
+            else:
+                log('trying blind dig')
+                dig_cell = blind_dig(robot, game_map, game_state.turn)
+                if dig_cell:
+                    cmd_given = 'DIG {} {}'.format(dig_cell.x, dig_cell.y)
     return cmd_given
 
 
@@ -464,6 +487,7 @@ while True:
             game_state.ore_available += cell.ore
 
     game_state.radar_requested, game_state.trap_requested = False, False
+    game_state.num_bots_moving_to_radar = 0
 
     for id, robot in my_robots.items():
         if not robot.dead:
