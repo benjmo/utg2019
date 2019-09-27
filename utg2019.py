@@ -242,7 +242,8 @@ def get_next_trap_pattern_coord(trap_pattern_coords, game_map, current_cell=None
             if coord.is_equal(placed_coord):
                 in_list = True
                 break
-        if not in_list:
+        if not in_list and game_map.get_cell(coord.x, coord.y).is_safe():
+            log("we think " + str(game_map.get_cell(coord.x, coord.y)) + " is " + str(game_map.get_cell(coord.x, coord.y).is_safe()))
             not_placed.append(coord)
 
 
@@ -744,7 +745,7 @@ while True:
                 #     log(game_map.grid[i][j].we_dug + j + i)
 
                 for robot in my_robots.values():
-                    if robot.last_command == 'DIG' and manhattan_distance(game_map.grid[i][j], game_map.get_cell(robot.x, robot.y)) <= 1:
+                    if robot.last_command == 'DIG' and manhattan_distance(game_map.grid[i][j], game_map.get_cell(robot.x, robot.y)) <= 1 and (j, i) in game_state.dug_last_turn:
                         game_map.grid[i][j].we_dug = True
                         log(game_map.grid[i][j].we_dug + j + i)
 
