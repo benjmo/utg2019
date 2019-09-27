@@ -127,6 +127,27 @@ class GameState:
         self.radar_requested = 0
         self.trap_requested = 0
         self.ore_available = 0
+        self.turns_since_trap_avail = 0
+
+    def update_turns_since_trap(self):
+        # set turns since trap
+        if self.trap_cooldown == 0:
+            self.turns_since_trap_avail += 1
+        else:
+            self.turns_since_trap_avail = -1
+
+    def radar_ready(self):
+        return self.radar_cooldown == 0 \
+               and not self.radar_requested \
+               and len(remaining_radar_placements) \
+               and self.ore_available < ore_remaining_radar_threshold
+
+    def trap_ready(self):
+        return self.trap_cooldown == 0 \
+               and not self.trap_requested \
+               and self.turns_since_trap_avail >= wait_turns_after_trap_cooldown \
+               and self.turn < trap_placement_turn_threshold
+
 
 # GLOBAL PARAMS
 
@@ -153,6 +174,7 @@ trap_placement_turn_threshold = 150
 early_blind_dig_column_restrict = 3
 early_blind_dig_turns = 2
 send_bots_to_different_ore = False
+wait_turns_after_trap_cooldown = 2
 
 
 def update_task(robot, game_state):
@@ -172,14 +194,12 @@ def update_task(robot, game_state):
         task_assigned = False
         if robot.x == 0:
             # check if radar is available
-            if game_state.radar_cooldown == 0 and len(remaining_radar_placements) and not game_state.radar_requested \
-                    and game_state.ore_available < ore_remaining_radar_threshold:
+            if game_state.radar_ready():
                 robot.task = 'RADAR'
                 robot.target_x, robot.target_y = remaining_radar_placements.pop(0)
                 task_assigned = True
             # check if trap is available
-            elif game_state.trap_cooldown == 0 and not game_state.trap_requested \
-                    and game_state.turn <= trap_placement_turn_threshold:
+            elif game_state.trap_ready():
                 robot.task = 'TRAP'
                 task_assigned = True
         # go and get some ore
@@ -187,12 +207,13 @@ def update_task(robot, game_state):
             robot.task = 'ORE'
 
 
-def place_radar(robot):
+def place_radar(robot, game_state):
     cmd_given = None
     # Robot doesn't have radar - request
     if not robot.has_radar():
         cmd_given = 'REQUEST RADAR'
         robot.collected_item = True
+        game_state.radar_requested = True
 
     # Robot has radar - proceed to target
     else:
@@ -202,10 +223,11 @@ def place_radar(robot):
     return cmd_given
 
 
-def place_trap(robot, game_map):
+def place_trap(robot, game_map, game_state):
     cmd_given = None
     if not robot.has_trap():
         cmd_given = 'REQUEST TRAP'
+        game_state.trap_requested = True
     else:
         my_cell = game_map.get_cell(robot.x, robot.y)
         trap_candidate_coords = game_map.get_trap_candidate_coords()
@@ -265,10 +287,10 @@ def command_robot(robot, ore_cells, game_map, game_state):
 
     # Perform tasks
     if robot.task == 'RADAR':
-       cmd_given = place_radar(robot)
+        cmd_given = place_radar(robot, game_state)
 
     elif robot.task == 'TRAP':
-        cmd_given = place_trap(robot, game_map)
+        cmd_given = place_trap(robot, game_map, game_state)
 
     elif robot.task == 'ORE':
         cmd_given = find_ore(robot, ore_cells, game_map, game_state)
@@ -392,6 +414,7 @@ while True:
     # radar_cooldown: turns left until a new radar can be requested
     # trap_cooldown: turns left until a new trap can be requested
     entity_count, game_state.radar_cooldown, game_state.trap_cooldown = [int(i) for i in input().split()]
+    game_state.update_turns_since_trap()
 
     for i in range(entity_count):
         id, type, x, y, item = [int(j) for j in input().split()]
@@ -445,12 +468,6 @@ while True:
     for id, robot in my_robots.items():
         if not robot.dead:
             command = command_robot(robot, ore_cells, game_map, game_state)
-
-            if command == 'REQUEST RADAR':
-                game_state.radar_requested = True
-            elif command == 'REQUEST TRAP':
-                game_state.trap_requested = True
-
             command += ' {}'.format(robot.task)
             print(command)
         else:
