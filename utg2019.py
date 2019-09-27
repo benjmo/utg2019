@@ -373,6 +373,48 @@ def robots_within_distance_from_cell(robots, game_map, target_cell, dist):
             robots_in_range.append(robot)
     return robots_in_range
 
+# return set of coordinates that will be affected if trap is activated at given cell
+def get_affected_cells_for_trap_at(base_cell, game_map, visited_cells=set()):
+    """
+    Find set of coordinates that will be affected if trap is activated at base_cell
+    :param base_cell
+    :param game_map
+    :return: Set of cells that will be affected. Empty if no trap at given base_cell
+    """
+    affected_cells = set()
+    visited_cells.add(base_cell)
+    if not base_cell.has_trap():
+        return affected_cells
+
+    affected_cells.add(base_cell)
+
+    neighbours = neighbouring_cells(base_cell, game_map)
+    for cell in neighbours:
+        affected_cells.add(cell)
+        if cell.has_trap() and not cell in visited_cells:
+            affected_cells = affected_cells.union(get_affected_cells_for_trap_at(cell, game_map, visited_cells))
+
+    return affected_cells
+
+def neighbouring_cells(base_cell, game_map):
+    """
+    Get the direct neighbours (up to 4) of a cell
+    :param base_cell
+    :param game_map
+    :return: Set of cells, max 4
+    """
+    neighbours = set()
+    x = base_cell.x
+    y = base_cell.y
+    if x - 1 >= 0:
+        neighbours.add(game_map.get_cell(x - 1, y))
+    if x + 1 <= 29:
+        neighbours.add(game_map.get_cell(x + 1, y))
+    if y - 1 >= 0:
+        neighbours.add(game_map.get_cell(x, y - 1))
+    if y + 1 <= 14:
+        neighbours.add(game_map.get_cell(x, y + 1))
+    return neighbours
 
 # MAIN
 
