@@ -78,10 +78,10 @@ class GameMap:
                     coords.append(cell)
         return coords
 
-    def get_blind_dig_cells(self):
+    def get_blind_dig_cells(self, restrict=1):
         cells = list()
         for row in self.grid:
-            for cell in row[1:]:
+            for cell in row[restrict:]:
                 if not cell.hole and cell.ore == '?' and not cell.has_trap():
                     cells.append(cell)
         return cells
@@ -129,8 +129,9 @@ remaining_radar_placements = [(5, 5), (10, 7), (15, 11), (15, 3), (20, 7), (25, 
 all_radar_placements = deepcopy(remaining_radar_placements)
 
 ore_remaining_radar_threshold = 15
-
 trap_placement_turn_threshold = 150
+early_blind_dig_column_restrict = 3
+early_blind_dig_turns = 2
 
 
 def command_robot(robot, ore_cells, radar_cooldown, trap_cooldown, game_map, radar_requested, trap_requested, turn):
@@ -221,7 +222,7 @@ def command_robot(robot, ore_cells, radar_cooldown, trap_cooldown, game_map, rad
                 robot.task = "RETURN"
             else:
                 print('trying blind dig', file=sys.stderr)
-                dig_cell = blind_dig(robot, game_map)
+                dig_cell = blind_dig(robot, game_map, turn)
                 if dig_cell:
                     cmd_given = 'DIG {} {}'.format(dig_cell.x, dig_cell.y)
 
@@ -237,14 +238,18 @@ def command_robot(robot, ore_cells, radar_cooldown, trap_cooldown, game_map, rad
     return cmd_given
 
 
-def blind_dig(robot, game_map):
+def blind_dig(robot, game_map, turn):
     """
     Find closest safe cell to try blind dig
     :param robot:
     :param game_map:
     :return:
     """
-    safe_cells = game_map.get_blind_dig_cells()
+
+    # try to dig further in on first 2 turns
+    restrict_columns = early_blind_dig_column_restrict if turn < early_blind_dig_turns else 1
+
+    safe_cells = game_map.get_blind_dig_cells(restrict_columns)
     if safe_cells:
         robot_cell = game_map.get_cell(robot.x, robot.y)
         closest = safe_cells[0]
