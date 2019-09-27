@@ -14,6 +14,7 @@ class Cell:
         self.ore = ore
         self.hole = hole
         self.we_dug = False
+        self.turn_dug = -1
 
         # items: 0 = none, 1 = ours, 2 = opponent
         self.trap = 0
@@ -396,6 +397,7 @@ def robots_within_distance_from_cell(robots, game_map, target_cell, dist):
             robots_in_range.append(robot)
     return robots_in_range
 
+
 # return set of coordinates that will be affected if trap is activated at given cell
 def get_affected_cells_for_trap_at(base_cell, game_map, visited_cells=set()):
     """
@@ -419,6 +421,7 @@ def get_affected_cells_for_trap_at(base_cell, game_map, visited_cells=set()):
 
     return affected_cells
 
+
 def neighbouring_cells(base_cell, game_map):
     """
     Get the direct neighbours (up to 4) of a cell
@@ -438,6 +441,7 @@ def neighbouring_cells(base_cell, game_map):
     if y + 1 <= 14:
         neighbours.add(game_map.get_cell(x, y + 1))
     return neighbours
+
 
 # MAIN
 
@@ -466,6 +470,11 @@ while True:
 
             # hole: 1 if cell has a hole
             hole = int(inputs[2*j+1])
+
+            # check if hole was dug this turn
+            if hole and not game_map.grid[i][j].hole:
+                game_map.grid[i][j].turn_dug = game_state.turn
+                
             game_map.grid[i][j].hole = hole
 
             # clear trap info
