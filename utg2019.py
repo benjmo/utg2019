@@ -63,7 +63,7 @@ class GameMap:
         return self.grid
 
     def valid_coords(self, x, y):
-        return x >= 0 and x < self.width and y >= 0 and y < self.height
+        return 0 <= x < self.width and 0 <= y < self.height
 
     def get_cell(self, x, y):
         return self.grid[y][x]
@@ -92,6 +92,59 @@ class GameMap:
                     candidates.append(cell)
 
         return candidates
+
+    def check_first_column_trapped(self, game_state):
+        # after certain period, or we already lost bots, assume trap isn't there
+        if game_state.turn > turns_to_check_trap or game_state.num_my_bots_alive < bots_alive_to_check_trap:
+            game_state.first_col_trapped.clear()
+            return
+
+        # assume that if trap was there before, and above not met, trap is still there
+        elif len(game_state.first_col_trapped):
+            return
+
+        # is opp just blind digging?
+        num_cells_opp_dug = 0
+
+        # danger rows
+        start_trap, end_trap = estimated_first_column_trap_rows
+        opp_dug_in_trap_range = 0
+        danger_rows = set()
+        prev_cell_dug = False
+
+        # iterate over first cell in each row
+        for rownum, row in enumerate(self.grid):
+            first_cell = row[0]
+
+            # opp dug this hole
+            if first_cell.hole and not first_cell.we_dug:
+                num_cells_opp_dug += 1
+
+                # how many consecutive cells dug by opp in expected trap rows
+                if start_trap <= rownum <= end_trap:
+                    if prev_cell_dug or rownum == start_trap:
+                        opp_dug_in_trap_range += 1
+                        danger_rows.add(rownum)
+                    else:
+                        opp_dug_in_trap_range = 0
+                        danger_rows.clear()
+
+                prev_cell_dug = True
+            elif first_cell.has_trap():  # we contributed to the chain of traps
+                prev_cell_dug = True
+            else:
+                prev_cell_dug = False
+
+        # not a trap
+        if num_cells_opp_dug >= first_column_blind_dig_threshold \
+                or opp_dug_in_trap_range <= estimated_first_column_trap_size:
+            danger_rows.clear()
+        else:
+            # consider full trap range
+            danger_rows.add(min(danger_rows) - 1)
+            danger_rows.add(max(danger_rows) + 1)
+
+        game_state.first_col_trapped = danger_rows
 
 
 class Robot:
@@ -131,6 +184,8 @@ class GameState:
         self.turns_since_trap_avail = 0
         self.next_radar_coords = None
         self.num_bots_moving_to_radar = 0
+        self.first_col_trapped = set()
+        self.my_bots_alive = 5
 
     def update_turns_since_trap(self):
         # set turns since trap
@@ -158,32 +213,51 @@ class GameState:
 
 # GLOBAL PARAMS
 
+# HARDCODED RADAR PLACEMENTS
 # remaining_radar_placements = [(5, 3), (5, 11), (10, 7), (15, 11), (15, 3), (20, 7), (25, 3), (25, 11), (20, 0), (20, 14), (29, 7),
 #                     (10, 0), (10, 14), (20, 0), (20, 14), (0, 7)]
-
 remaining_radar_placements = [(10, 7), (15, 11), (15, 3), (20, 7), (25, 3), (25, 11), (20, 0), (20, 14),
                               (10, 0), (10, 14), (29, 7), (20, 0), (20, 14), (5, 3), (5, 11), (0, 7)]
-
 # alternative config:
 # remaining_radar_placements = [(10, 3), (10, 11), (15, 7), (20, 3), (20, 11), (15, 0), (15, 14), (25, 7),
 #                              (5, 7), (27, 2), (27, 12)]
 
-# x value to shift radar pos by
-shift_x = 0
+
+# SHIFT RADAR PLACEMENTS
+shift_x = 0 # x value to shift radar pos by
 if shift_x != 0:
     for i, coord in enumerate(remaining_radar_placements):
         remaining_radar_placements[i] = (min(coord[0] + shift_x, 29), coord[1])
 
 all_radar_placements = deepcopy(remaining_radar_placements)
 
+# NUM ORE REMAINING BEFORE SETTING NEW RADAR
 ore_remaining_radar_threshold = 15
+
+# STOP PLACING TRAPS AFTER TURN X
 trap_placement_turn_threshold = 150
+
+# DON'T DIG IN FIRST X COLUMNS FOR FIRST Y TURNS
 early_blind_dig_column_restrict = 3
 early_blind_dig_turns = 2
+
+# DON'T SEND BOTS TO SAME ORE, EVEN IF >1 ORE LEFT
 send_bots_to_different_ore = False
+
+# EXTRA TURNS TO WAIT BETWEEN REQUESTING TRAP
 wait_turns_after_trap_cooldown = 2
+
+# MOVE TO NEXT RADAR DURING FIRST X TURNS
 move_to_radar_turn_threshold = 50
 max_bots_moving_to_radar = 2
+
+# PREDICT WHETHER FIRST COLUMN TRAPPED
+trap_avoidance_active = False
+estimated_first_column_trap_rows = (5, 9)
+estimated_first_column_trap_size = 3
+first_column_blind_dig_threshold = 7  # if more than x cells in first column dug, assume it was just blind digging
+turns_to_check_trap = 50
+bots_alive_to_check_trap = 4
 
 
 def update_task(robot, game_state):
@@ -304,6 +378,24 @@ def find_ore(robot, ore_cells, game_map, game_state):
     return cmd_given
 
 
+def return_to_base(robot, game_state):
+    cmd_given = None
+    if trap_avoidance_active \
+            and len(game_state.first_col_trapped) \
+            and robot.y in game_state.first_col_trapped:  # bot would return to danger zone
+        middle_trap_row = int((min(game_state.first_col_trapped) + max(game_state.first_col_trapped)) / 2)
+        # below the middle of trap, go to first safe row below
+        if robot.y > middle_trap_row:
+            cmd_given = 'MOVE 0 {}'.format(max(game_state.first_col_trapped) + 1)
+        # above the middle of trap, go to first safe row above
+        else:
+            cmd_given = 'MOVE 0 {}'.format(min(game_state.first_col_trapped) - 1)
+    else:
+        cmd_given = 'MOVE 0 {}'.format(robot.y)
+
+    return cmd_given
+
+
 def command_robot(robot, ore_cells, game_map, game_state):
     cmd_given = None
 
@@ -320,7 +412,7 @@ def command_robot(robot, ore_cells, game_map, game_state):
         cmd_given = find_ore(robot, ore_cells, game_map, game_state)
 
     if robot.task == 'RETURN':
-        cmd_given = 'MOVE 0 {}'.format(robot.y)
+        cmd_given = return_to_base(robot, game_state)
 
     if not cmd_given:
         log('ERROR: no command given - clear robot task and WAIT')
@@ -474,7 +566,7 @@ while True:
             # check if hole was dug this turn
             if hole and not game_map.grid[i][j].hole:
                 game_map.grid[i][j].turn_dug = game_state.turn
-                
+
             game_map.grid[i][j].hole = hole
 
             # clear trap info
@@ -503,6 +595,7 @@ while True:
                     my_robots[id].id = id
                     if x == -1 and y == -1:
                         my_robots[id].dead = True
+                        game_state.my_bots_alive -= 1
                 else:
                     my_robots[id] = robot
 
@@ -539,6 +632,9 @@ while True:
 
     game_state.radar_requested, game_state.trap_requested = False, False
     game_state.num_bots_moving_to_radar = 0
+
+    if trap_avoidance_active:
+        game_map.check_first_column_trapped(game_state)
 
     for id, robot in my_robots.items():
         if not robot.dead:
