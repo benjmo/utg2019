@@ -534,6 +534,19 @@ def neighbouring_cells(base_cell, game_map):
         neighbours.add(game_map.get_cell(x, y + 1))
     return neighbours
 
+def get_num_robots_in(cells, robots):
+    """
+    Gets the number of robots in given cells
+    :param cells
+    :param robots
+    :return: number of robots
+    """
+    num_bots = 0
+
+    for cell in cells:
+        for robot in robots:
+            if robot.x == cell.x and robot.y == cell.y:
+                num_bots += 1
 
 # MAIN
 
